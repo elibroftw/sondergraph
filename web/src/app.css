@@ -1,4 +1,15 @@
+/* ── Theme ─────────────────────────────────────────────────────────────────────
+   Light is the base; dark is applied when the operating system asks for it. There is no
+   in-app toggle on purpose: the app follows the system preference, so it matches every
+   other window on the desktop without the user configuring anything twice.
+
+   `color-scheme` is what makes the browser style its own widgets — scrollbars, the native
+   search-field clear button, focus rings, and the caret — to match. Without it the page
+   paints dark while its scrollbars and form controls stay light, which looks broken. */
+
 :root {
+  color-scheme: light dark;
+
   --bg: #fafaf7;
   --panel: #ffffff;
   --text: #1a1a17;
@@ -7,7 +18,14 @@
   --hover: #f0efea;
   --accent: #2c6e49;
   --accent-soft: rgba(44, 110, 73, 0.08);
+  --accent-contrast: #ffffff;
   --danger: #b3261e;
+  --danger-soft: rgba(179, 38, 30, 0.08);
+  --danger-border: rgba(179, 38, 30, 0.3);
+  --chip-bg-mix: 32%;
+  --chip-text-mix: 42%;
+  --chip-border-mix: 74%;
+  --shadow-panel: none;
 
   font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: var(--text);
@@ -15,6 +33,36 @@
   font-size: 15px;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16181a;
+    --panel: #1e2124;
+    --text: #e8e6e1;
+    --muted: #9d9a94;
+    --border: #2f3438;
+    --hover: #262a2e;
+
+    /* The light accent (#2c6e49) is too dark to read on a dark surface, so the dark
+       theme lifts it. The hue is kept so the identity stays recognisable. */
+    --accent: #67b98a;
+    --accent-soft: rgba(103, 185, 138, 0.12);
+    /* Text sitting ON the accent fill. In light mode the accent is dark and wants white
+       text; in dark mode it is light and wants dark text, or the button is unreadable. */
+    --accent-contrast: #10201a;
+
+    --danger: #f2857c;
+    --danger-soft: rgba(242, 133, 124, 0.1);
+    --danger-border: rgba(242, 133, 124, 0.35);
+
+    /* Chips are tinted per-platform from a hue. On a dark surface they need a darker,
+       more saturated fill and lighter text to stay legible and distinct. */
+    --chip-bg-mix: 22%;
+    --chip-text-mix: 78%;
+    --chip-border-mix: 34%;
+    --shadow-panel: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
 }
 
 * {
@@ -92,8 +140,16 @@ header {
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
+  /* Explicit rather than inherited: without these the input inherits the page colours and
+     the typed text becomes dark-on-dark in the dark theme. */
   background: var(--panel);
+  color: var(--text);
+  font: inherit;
   font-size: 15px;
+}
+
+.search::placeholder {
+  color: var(--muted);
 }
 
 .search:focus {
@@ -113,15 +169,22 @@ header {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--panel);
-  color: var(--muted);
+  /* Uses the body text colour, not the muted one: an unselected filter still has to be
+     legible - the selected state is distinguished by the accent fill, not by fading the
+     others into invisibility. */
+  color: var(--text);
   font-size: 13px;
   cursor: pointer;
+}
+
+.tiers button:hover {
+  background: var(--hover);
 }
 
 .tiers button.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 /* ---- layout ------------------------------------------------------------------- */
@@ -170,7 +233,7 @@ header {
 
 .list li button.selected {
   background: var(--accent-soft);
-  border-color: rgba(44, 110, 73, 0.25);
+  border-color: var(--accent);
 }
 
 .avatar {
@@ -181,7 +244,7 @@ header {
   display: grid;
   place-items: center;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   font-weight: 600;
   font-size: 15px;
 }
@@ -215,9 +278,9 @@ header {
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 11px;
-  color: hsl(var(--hue) 45% 30%);
-  background: hsl(var(--hue) 55% 92%);
-  border: 1px solid hsl(var(--hue) 40% 80%);
+  color: hsl(var(--hue) 45% var(--chip-text-mix));
+  background: hsl(var(--hue) 45% var(--chip-bg-mix));
+  border: 1px solid hsl(var(--hue) 35% var(--chip-border-mix));
   white-space: nowrap;
 }
 
@@ -245,8 +308,8 @@ header {
   margin: 12px 0;
   padding: 12px 14px;
   border-radius: 8px;
-  background: rgba(179, 38, 30, 0.08);
-  border: 1px solid rgba(179, 38, 30, 0.3);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
   color: var(--danger);
 }
 
@@ -258,6 +321,7 @@ header {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--panel);
+  box-shadow: var(--shadow-panel);
 }
 
 .notice pre {
@@ -276,6 +340,7 @@ header {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--panel);
+  box-shadow: var(--shadow-panel);
   padding: 18px;
   min-height: 220px;
 }
@@ -298,7 +363,7 @@ header {
   padding: 2px 10px;
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
   font-size: 12px;
 }
 

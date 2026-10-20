@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Declared in the head, before any stylesheet, so the browser paints scrollbars and
+         form controls to match the system theme immediately. Without it a dark-mode user
+         sees a white flash and light scrollbars until app.css is parsed. -->
+    <meta name="color-scheme" content="light dark" />
+
     <title>sondergraph</title>
   </head>
   <body>

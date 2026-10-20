@@ -162,6 +162,11 @@ internal static partial class IngestCommands
             Console.WriteLine($"  parser: {parser.DisplayName} v{parser.ParserVersion}");
 
             var context = new ParseContext();
+
+            // Only keep Instagram accounts the user follows AND who follow back. Requested
+            // policy, applied here rather than in the parser so the parser keeps describing
+            // the archive faithfully. --all-follows opts out.
+            context.Options["mutualFollowOnly"] = options.AllFollows ? "false" : "true";
             var stopwatch = Stopwatch.StartNew();
             var records = parser.Parse(source, context).ToList();
             stopwatch.Stop();
@@ -307,6 +312,16 @@ internal sealed record IngestOptions
     internal bool Wait { get; init; }
 
     /// <summary>
+    /// Keep every Instagram follow, not only mutual ones.
+    /// </summary>
+    /// <remarks>
+    /// The default keeps only accounts followed in both directions, which is the requested
+    /// policy: a contact list padded with people who never follow back is noise. The opt-out
+    /// exists because the archive is the user's own and nothing should be unreachable.
+    /// </remarks>
+    internal bool AllFollows { get; init; }
+
+    /// <summary>
     /// Parses arguments, skipping the leading <c>ingest parse</c>.
     /// </summary>
     /// <remarks>
@@ -321,6 +336,7 @@ internal sealed record IngestOptions
         string? workspacePath = null;
         var dryRun = false;
         var wait = false;
+        var allFollows = false;
 
         for (var i = 2; i < args.Length; i++)
         {
@@ -344,6 +360,10 @@ internal sealed record IngestOptions
                     wait = true;
                     break;
 
+                case "--all-follows":
+                    allFollows = true;
+                    break;
+
                 default:
                     if (!arg.StartsWith('-') && path is null)
                     {
@@ -361,6 +381,7 @@ internal sealed record IngestOptions
             WorkspacePath = workspacePath,
             DryRun = dryRun,
             Wait = wait,
+            AllFollows = allFollows,
         };
     }
 }

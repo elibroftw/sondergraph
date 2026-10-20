@@ -46,6 +46,9 @@ public sealed class InstagramParser : IPlatformParser
     /// <summary>Files to read, mapped to what the relationship means.</summary>
     private static readonly Dictionary<string, InteractionKind> RelationFiles = new(StringComparer.OrdinalIgnoreCase)
     {
+        // Both directions are recorded, because "follows me" and "I follow them" are
+        // different facts. Which of them become contacts is decided by
+        // MutualFollowOnly below, not by what is parsed.
         ["following.json"] = InteractionKind.Followed,
         ["followers_1.json"] = InteractionKind.Followed,
         ["close_friends.json"] = InteractionKind.CloseFriend,
@@ -88,6 +91,97 @@ public sealed class InstagramParser : IPlatformParser
         return false;
     }
 
+    /// <summary>
+    /// Whether ingest keeps only people the user follows and who follow back.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A workspace preference rather than a parser rule, but the two follow-relation files
+    /// are the only place the information exists, so the filter lives beside them.
+    /// </para>
+    /// <para>
+    /// In this export the asymmetry is large: 666 accounts followed, 526 followers, and only
+    /// 510 mutual. Keeping the other 166 means a contact list padded with people who will
+    /// never be contacted.
+    /// </para>
+    /// </remarks>
+    private const string MutualFollowOnlyKey = "mutualFollowOnly";
+
+    /// <summary>Handles in <c>following.json</c> (accounts the user follows).</summary>
+    private static HashSet<string> ReadFollowing(IRawSource source, ParseContext context) =>
+        ReadHandles(source, "following.json", context);
+
+    /// <summary>Handles in <c>followers_1.json</c> (accounts that follow the user).</summary>
+    private static HashSet<string> ReadFollowers(IRawSource source, ParseContext context) =>
+        ReadHandles(source, "followers_1.json", context);
+
+    /// <summary>
+    /// Reads the handles from one relation file, tolerating both observed shapes.
+    /// </summary>
+    /// <remarks>
+    /// <c>followers_1.json</c> is a bare array whose entries carry the handle in
+    /// <c>string_list_data[].value</c>. <c>following.json</c> is an object keyed
+    /// <c>relationships_following</c> whose entries carry it in <c>title</c> and omit
+    /// <c>value</c> entirely. Reading only one shape silently yields zero handles for the
+    /// other, which would make every account look unmatched.
+    /// </remarks>
+    private static HashSet<string> ReadHandles(IRawSource source, string fileName, ParseContext context)
+    {
+        var handles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var path = source.EnumerateFiles()
+            .FirstOrDefault(f => string.Equals(Path.GetFileName(f), fileName, StringComparison.OrdinalIgnoreCase));
+
+        if (path is null)
+        {
+            return handles;
+        }
+
+        var text = source.ReadAllText(path);
+
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return handles;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            var root = document.RootElement;
+
+            IEnumerable<JsonElement> records;
+
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                records = root.EnumerateObject()
+                    .Where(p => p.Value.ValueKind == JsonValueKind.Array)
+                    .SelectMany(p => p.Value.EnumerateArray());
+            }
+            else if (root.ValueKind == JsonValueKind.Array)
+            {
+                records = root.EnumerateArray();
+            }
+            else
+            {
+                return handles;
+            }
+
+            foreach (var element in records)
+            {
+                if (ExtractIdentity(element) is { } extracted)
+                {
+                    handles.Add(PlatformAccount.NormaliseHandle(extracted.Handle));
+                }
+            }
+        }
+        catch (JsonException ex)
+        {
+            context.Report(fileName, "invalid JSON", ex.Message);
+        }
+
+        return handles;
+    }
+
     /// <inheritdoc />
     public IEnumerable<ParsedRecord> Parse(IRawSource source, ParseContext context)
     {
@@ -99,14 +193,49 @@ public sealed class InstagramParser : IPlatformParser
             .Order(StringComparer.Ordinal)
             .ToList();
 
+        // A follow is only kept when it is mutual. The two relation files describe opposite
+        // directions, so a single record cannot decide this - it takes both sets.
+        var following = ReadFollowing(source, context);
+        var followers = ReadFollowers(source, context);
+
+        // Default OFF in the parser, ON at the CLI and API. A parser is a pure function of
+        // its input (ADR 0003), so silently discarding records by default would make it lie
+        // about the archive: "--dry-run" and the ingest report would no longer describe what
+        // the files contain. The policy belongs to the acquisition layer, which asks for it.
+        var mutual = context.GetFlag(MutualFollowOnlyKey, defaultValue: false)
+            ? new HashSet<string>(following.Intersect(followers, StringComparer.OrdinalIgnoreCase),
+                StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        var dropped = 0;
+
         foreach (var file in files)
         {
             var kind = RelationFiles[Path.GetFileName(file)];
 
             foreach (var record in ParseFile(source, file, kind, context))
             {
+                // Only the two follow files are subject to the mutual rule. Close friends and
+                // follow requests are separate facts and are not filtered.
+                if (mutual is not null
+                    && record is ObservedAccount account
+                    && (Path.GetFileName(file).Equals("following.json", StringComparison.OrdinalIgnoreCase)
+                        || Path.GetFileName(file).Equals("followers_1.json", StringComparison.OrdinalIgnoreCase))
+                    && !mutual.Contains(PlatformAccount.NormaliseHandle(account.Handle)))
+                {
+                    dropped++;
+                    continue;
+                }
+
                 yield return record;
             }
+        }
+
+        if (dropped > 0)
+        {
+            context.Report(
+                "followers_and_following",
+                $"skipped {dropped} non-mutual follow(s)");
         }
 
         // Report the exclusions so they are visible in the ingest summary rather than

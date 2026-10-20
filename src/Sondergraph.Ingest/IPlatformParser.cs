@@ -50,6 +50,26 @@ public sealed class ParseContext
         _onProblem = onProblem;
     }
 
+    /// <summary>
+    /// Parser options, as free-form key/value pairs.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately loose rather than a typed settings object: parsers are pure functions of
+    /// their input, and only a few knobs are ever worth exposing. A typed class per parser
+    /// would add ceremony without removing the real problem, which is that an option changes
+    /// what gets extracted and therefore needs recording in the ingest report.
+    /// </remarks>
+    public IDictionary<string, string> Options { get; } =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Reads a boolean option, falling back to a supplied default.</summary>
+    public bool GetFlag(string key, bool defaultValue) =>
+        Options.TryGetValue(key, out var raw)
+            ? !(raw.Equals("false", StringComparison.OrdinalIgnoreCase)
+                || raw.Equals("0", StringComparison.Ordinal)
+                || raw.Equals("no", StringComparison.OrdinalIgnoreCase))
+            : defaultValue;
+
     /// <summary>When the parse started, fixed once so parsers are reproducible.</summary>
     public DateOnly Today { get; init; } = DateOnly.FromDateTime(DateTime.UtcNow);
 

@@ -49,6 +49,63 @@ public sealed class InstagramParserTests
     }
 
     [Fact]
+    public void Mutual_only_keeps_accounts_followed_in_both_directions()
+    {
+        // following.json puts the handle in "title" and omits "value"; followers_1.json is
+        // the reverse. Reading either shape wrongly makes every account look unmatched, so
+        // both directions are exercised together here.
+        const string following = """
+            {"relationships_following":[
+              {"title":"mutual","string_list_data":[{"href":"https://www.instagram.com/mutual"}]},
+              {"title":"only_followed","string_list_data":[{"href":"https://www.instagram.com/only_followed"}]}]}
+            """;
+
+        const string followers = """
+            [{"title":"","string_list_data":[{"href":"https://www.instagram.com/mutual","value":"mutual"}]},
+             {"title":"","string_list_data":[{"href":"https://www.instagram.com/only_follower","value":"only_follower"}]}]
+            """;
+
+        var source = new InMemoryRawSource();
+        source.Add(Dir + "following.json", following);
+        source.Add(Dir + "followers_1.json", followers);
+
+        var context = new ParseContext();
+        context.Options["mutualFollowOnly"] = "true";
+
+        var handles = new InstagramParser()
+            .Parse(source, context)
+            .OfType<ObservedAccount>()
+            .Select(a => a.Handle)
+            .ToList();
+
+        Assert.Contains("mutual", handles);
+        Assert.DoesNotContain("only_followed", handles);
+        Assert.DoesNotContain("only_follower", handles);
+    }
+
+    [Fact]
+    public void Mutual_filtering_is_off_unless_asked_for()
+    {
+        // A parser is a pure function of its input (ADR 0003), so discarding records by
+        // default would make it misreport the archive. The policy lives in the CLI.
+        const string following = """
+            {"relationships_following":[
+              {"title":"only_followed","string_list_data":[{"href":"https://www.instagram.com/only_followed"}]}]}
+            """;
+
+        var source = new InMemoryRawSource();
+        source.Add(Dir + "following.json", following);
+
+        var handles = new InstagramParser()
+            .Parse(source, new ParseContext())
+            .OfType<ObservedAccount>()
+            .Select(a => a.Handle)
+            .ToList();
+
+        Assert.Contains("only_followed", handles);
+    }
+
+    [Fact]
     public void Parses_shape_3b_where_title_is_empty()
     {
         // followers_1.json: a bare array, title empty, handle in string_list_data[].value.

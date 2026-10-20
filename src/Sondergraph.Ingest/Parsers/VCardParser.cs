@@ -368,6 +368,30 @@ public sealed class VCardParser : IPlatformParser
         var (nativeId, strategy) = ChooseIdentifier(name, phones, emails);
         extra["idStrategy"] = strategy;
 
+        // Resolve a sibling photo file when the card only carried a remote URL.
+        //
+        // Google Takeout writes PHOTO as an https URL, yet also ships the image as a file
+        // beside the .vcf named exactly after the contact - including emoji and punctuation,
+        // for example "Ramp <emoji>.jpg". That is the offline-capable reference, so prefer it.
+        //
+        // The lookup is against the source's real file list, never a reconstructed path:
+        // display names contain spaces, emoji and mixed case, and rebuilding a filename from
+        // FN would break on Unicode normalisation differences that are invisible in a diff.
+        if (photoRef is null && photoBytes is null && extra.ContainsKey("photoUrl"))
+        {
+            var sibling = FindSiblingPhoto(source, sourcePath, name);
+
+            if (sibling is not null)
+            {
+                photoRef = sibling;
+                extra["photoSource"] = "siblingFile";
+            }
+            else
+            {
+                extra["photoSource"] = "remoteUrl";
+            }
+        }
+
         return new ObservedAccount
         {
             Platform = "vcard",
@@ -439,6 +463,10 @@ public sealed class VCardParser : IPlatformParser
 
         if (!isBase64 && value.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
+            // Google Takeout writes the photo as a remote URL rather than a sibling file,
+            // even though sibling .jpg files are also present in the archive. The URL is
+            // recorded but never fetched — parsers make no network calls (ADR 0003), and
+            // the sibling file, when present, is the offline-capable reference.
             extra["photoUrl"] = value;
             return;
         }
@@ -470,6 +498,70 @@ public sealed class VCardParser : IPlatformParser
         {
             context.Report(sourcePath, "PHOTO value is not valid base64");
         }
+    }
+
+    /// <summary>
+    /// Finds an image file sitting beside the .vcf, named after the contact.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Searches the source's actual file list in the same directory as
+    /// <paramref name="vcfPath"/>, so the comparison is against real names rather than a
+    /// reconstructed path. This matters: contact names contain emoji, doubled spaces and
+    /// mixed case, and Unicode normalisation can differ between what a vCard stores and what
+    /// a zip stores while looking identical.
+    /// </para>
+    /// <para>
+    /// Only the immediate directory is searched. Takeout groups photos per contact group
+    /// (<c>All Contacts/</c>, <c>My Contacts/</c>), and a global search would attach the wrong
+    /// image when the same name appears in two groups.
+    /// </para>
+    /// </remarks>
+    private static string? FindSiblingPhoto(IRawSource source, string vcfPath, string name)
+    {
+        var directory = Path.GetDirectoryName(vcfPath)?.Replace('\\', '/') ?? string.Empty;
+        var prefix = directory.Length == 0 ? string.Empty : directory + "/";
+
+        string[] extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+
+        foreach (var file in source.EnumerateFiles())
+        {
+            if (!file.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var remainder = file[prefix.Length..];
+
+            // Only direct siblings, not files in a nested directory.
+            if (remainder.Contains('/'))
+            {
+                continue;
+            }
+
+            var extension = extensions.FirstOrDefault(e =>
+                remainder.EndsWith(e, StringComparison.OrdinalIgnoreCase));;
+
+            if (extension is null)
+            {
+                continue;
+            }
+
+            var baseName = remainder[..^extension.Length];
+
+            // Normalise both sides before comparing. FormC is what most exporters emit and
+            // what the observed Takeout data uses, but normalising guards against a file and
+            // a card disagreeing on composition while rendering identically.
+            if (string.Equals(
+                baseName.Normalize(NormalizationForm.FormC),
+                name.Normalize(NormalizationForm.FormC),
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return file;
+            }
+        }
+
+        return null;
     }
 
     private static bool LooksLikePath(string value) =>

@@ -12,4 +12,7 @@
     <Project Path="tests/Sondergraph.Ingest.Tests/Sondergraph.Ingest.Tests.csproj" />
     <Project Path="tests/Sondergraph.Workspace.Tests/Sondergraph.Workspace.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Sondergraph.Probe/Sondergraph.Probe.csproj" />
+  </Folder>
 </Solution>

@@ -1,0 +1,6 @@
+root = true
+
+[*.cs]
+# The probe deliberately holds the parser behind IPlatformParser: the point is to exercise
+# the seam exactly as the real pipeline does, not to devirtualise a dev tool.
+dotnet_diagnostic.CA1859.severity = none

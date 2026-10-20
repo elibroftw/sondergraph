@@ -50,6 +50,22 @@ public sealed class PersonEditor
         });
     }
 
+    /// <summary>Records how you know this person, or clears it.</summary>
+    /// <remarks>
+    /// Normalised on write so "Work" and "work" cannot become two entries in the derived
+    /// suggestion list. An empty value clears the field rather than storing an empty string,
+    /// which would otherwise count as a recorded connection with no content.
+    /// </remarks>
+    public Result SetHowWeMet(string personId, string? howWeMet)
+    {
+        var normalised = ConnectionKinds.Normalise(howWeMet);
+
+        return Mutate(personId, person => person with
+        {
+            HowWeMet = normalised.Length == 0 ? null : normalised,
+        });
+    }
+
     /// <summary>
     /// Adds a tag, keeping the list sorted and free of duplicates.
     /// </summary>

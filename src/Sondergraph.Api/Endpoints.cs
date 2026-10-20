@@ -87,6 +87,9 @@ public static class SondergraphEndpoints
         // person has it set.
         api.MapGet("/channels", ListChannels);
 
+        api.MapPatch("/people/{id}/met", PatchHowWeMet);
+        api.MapGet("/connections", ListConnections);
+
         // Merging. POST /api/merges creates one; DELETE reverses it. Both are explicit
         // verbs on a resource rather than a "merge" flag on a person, so the result has an
         // id that can be undone.
@@ -362,6 +365,7 @@ public static class SondergraphEndpoints
     private sealed record MergeRequest(string? Surviving, string? Absorbed, string? Reason);
 
     private sealed record PreferredRequest(string? Channel);
+    private sealed record MetRequest(string? HowWeMet);
 
     private sealed record TierRequest(string? Tier);
     private sealed record TagsRequest(List<string>? Add, List<string>? Remove);
@@ -556,6 +560,69 @@ public static class SondergraphEndpoints
         });
     }
 
+    /// <summary>How-you-know-them values in use, for the suggestion list.</summary>
+    private static IResult ListConnections(WorkspaceProvider provider)
+    {
+        var store = provider.Store();
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var loaded = store.ValueOrThrow().ListAll(out _);
+        if (!loaded.IsOk)
+        {
+            return Problem(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var people = loaded.ValueOrThrow();
+        var inUse = ConnectionKinds.InUse(people);
+
+        return Results.Ok(new
+        {
+            connections = inUse.Count > 0 ? inUse : ConnectionKinds.DefaultSuggestions,
+            suggested = inUse.Count == 0,
+            inUse = inUse.Select(c => new
+            {
+                value = c,
+                label = ConnectionKinds.Display(c),
+                count = people.Count(p => string.Equals(
+                    ConnectionKinds.Normalise(p.HowWeMet), c, StringComparison.OrdinalIgnoreCase)),
+            }),
+        });
+    }
+
+    private static IResult PatchHowWeMet(WorkspaceProvider provider, string id, MetRequest request)
+    {
+        var store = provider.Store();
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var personStore = store.ValueOrThrow();
+        var editor = new PersonEditor(personStore);
+
+        var loaded = personStore.ListAll(out _);
+        var inUse = loaded.IsOk ? ConnectionKinds.InUse(loaded.ValueOrThrow()) : [];
+
+        var suggestion = ConnectionKinds.SuggestExisting(request.HowWeMet, inUse);
+        var changed = editor.SetHowWeMet(id, request.HowWeMet);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        return Results.Ok(new
+        {
+            personId = id,
+            howWeMet = ConnectionKinds.Normalise(request.HowWeMet) is { Length: > 0 } v ? v : null,
+            label = ConnectionKinds.Display(request.HowWeMet),
+            didYouMean = suggestion is null ? null : ConnectionKinds.Display(suggestion),
+        });
+    }
+
     private static IResult CreateMerge(WorkspaceProvider provider, MergeRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Surviving) || string.IsNullOrWhiteSpace(request.Absorbed))
@@ -717,6 +784,8 @@ public static class SondergraphEndpoints
         tierLabel = PersonDocument.DescribeTier(person.Tier),
         preferred = person.PreferredChannel,
         preferredLabel = PreferredChannels.Display(person.PreferredChannel),
+        howWeMet = person.HowWeMet,
+        howWeMetLabel = ConnectionKinds.Display(person.HowWeMet),
         phones = person.Phones,
         emails = person.Emails,
         locations = person.Locations.Select(l => new
@@ -747,6 +816,8 @@ public static class SondergraphEndpoints
         tierLabel = PersonDocument.DescribeTier(person.Tier),
         preferred = person.PreferredChannel,
         preferredLabel = PreferredChannels.Display(person.PreferredChannel),
+        howWeMet = person.HowWeMet,
+        howWeMetLabel = ConnectionKinds.Display(person.HowWeMet),
         phones = person.Phones,
         emails = person.Emails,
         tags = person.Tags,

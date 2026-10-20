@@ -185,6 +185,26 @@ public sealed record Person
     public ContactTier Tier { get; init; } = ContactTier.Unknown;
 
     /// <summary>
+    /// How the user knows this person, e.g. <c>work</c>, <c>university</c>, <c>the climbing
+    /// gym</c>. Null when unset.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this is a field and not a tag.</b> It is the only attribute that answers
+    /// "should this person even be in my contacts?", and it is the one context that survives a
+    /// merge: when two platform records become one, the connection is usually why they are the
+    /// same person. A tag would be searchable but would lose that meaning — tags describe a
+    /// person, this describes the relationship.
+    /// </para>
+    /// <para>
+    /// Free-form and normalised on write, like <see cref="PreferredChannel"/>, for the same
+    /// reason: the suggestion list is derived from usage, so a typo cannot become a permanent
+    /// category.
+    /// </para>
+    /// </remarks>
+    public string? HowWeMet { get; init; }
+
+    /// <summary>
     /// How this person prefers to be contacted, or null when unset.
     /// </summary>
     /// <remarks>
@@ -270,6 +290,13 @@ public sealed record Person
         foreach (var email in Emails)
         {
             yield return email;
+        }
+
+        // How you know someone is searchable: "who do I know from work?" is the point of
+        // recording it.
+        if (!string.IsNullOrWhiteSpace(HowWeMet))
+        {
+            yield return HowWeMet;
         }
 
         // The preferred channel is searchable: "who prefers Signal?" is the reason to record

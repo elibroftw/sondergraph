@@ -27,6 +27,7 @@
     tags={person.tags}
     locations={person.locations}
     preferred={person.preferred}
+    howWeMet={person.howWeMet}
     onchange={onchanged}
   />
 

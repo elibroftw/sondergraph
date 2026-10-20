@@ -8,6 +8,7 @@
     tags,
     locations,
     preferred,
+    howWeMet,
     onchange,
   }: {
     personId: string
@@ -15,6 +16,7 @@
     tags: string[]
     locations: LocationSummary[]
     preferred: string | null
+    howWeMet: string | null
     onchange: () => void
   } = $props()
 
@@ -26,6 +28,9 @@
   let adding = $state(false)
   let newChannel = $state('')
   let didYouMean = $state<string | null>(null)
+  let connections = $state<{ value: string; label: string }[]>([])
+  let connectionsSuggested = $state(false)
+  let metInput = $state('')
 
   let tagInput = $state('')
   let placeInput = $state('')
@@ -44,6 +49,36 @@
         channels = []
       })
   })
+
+  $effect(() => {
+    api
+      .connections()
+      .then((result) => {
+        connections = result.inUse.map((c) => ({ value: c.value, label: c.label }))
+        connectionsSuggested = result.suggested
+      })
+      .catch(() => {
+        connections = []
+      })
+  })
+
+  const setHowWeMet = (value: string) => run(async () => {
+    await api.setHowWeMet(personId, value || null)
+  })
+
+  const addMet = () =>
+    run(async () => {
+      const value = metInput.trim()
+      if (!value) return
+
+      const result = await api.setHowWeMet(personId, value)
+      didYouMean = result.didYouMean
+      metInput = ''
+
+      if (result.didYouMean) {
+        setTimeout(() => { didYouMean = null }, 8000)
+      }
+    })
 
   const setPreferred = (value: string) => run(async () => {
     await api.setPreferred(personId, value || null)
@@ -116,6 +151,41 @@
 {#if error}
   <p class="note-error" role="alert">{error}</p>
 {/if}
+
+<section>
+  <h3>How we met</h3>
+
+  <div class="inline-add">
+    <select
+      value={howWeMet ?? ''}
+      aria-label="How you know this person"
+      onchange={(e) => setHowWeMet((e.target as HTMLSelectElement).value)}
+      disabled={busy}
+    >
+      <option value="">Not recorded</option>
+      {#each connections as connection (connection.value)}
+        <option value={connection.value}>{connection.label}</option>
+      {/each}
+
+      <!-- Keep a person's own value selectable even when nobody else shares it. -->
+      {#if howWeMet && !connections.some((c) => c.value === howWeMet)}
+        <option value={howWeMet}>{howWeMet}</option>
+      {/if}
+    </select>
+
+    <input
+      bind:value={metInput}
+      placeholder="Or describe it…"
+      aria-label="Describe how you met"
+      onkeydown={(e) => { if (e.key === 'Enter') addMet() }}
+    />
+    <button disabled={busy || !metInput.trim()} onclick={addMet}>Set</button>
+  </div>
+
+  {#if connectionsSuggested && connections.length > 0}
+    <p class="muted hint-line">Suggested until someone records one.</p>
+  {/if}
+</section>
 
 <section>
   <h3>Preferred contact</h3>

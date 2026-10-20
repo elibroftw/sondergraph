@@ -51,6 +51,13 @@ public static class PersonDocument
             output.Append("preferred: ").Append(Yaml.Scalar(person.PreferredChannel)).Append('\n');
         }
 
+        // "met" rather than "howWeMet": the file is read and edited by hand, and the shorter
+        // key is what someone would reach for.
+        if (!string.IsNullOrWhiteSpace(person.HowWeMet))
+        {
+            output.Append("met: ").Append(Yaml.Scalar(person.HowWeMet)).Append('\n');
+        }
+
         if (person.Locations.Count == 0)
         {
             output.Append("locations: []\n");
@@ -163,6 +170,9 @@ public static class PersonDocument
             Tier = ParseTier(scalars.GetValueOrDefault("tier")),
             PreferredChannel = PreferredChannels.Normalise(scalars.GetValueOrDefault("preferred")) is { Length: > 0 } channel
                 ? channel
+                : null,
+            HowWeMet = ConnectionKinds.Normalise(scalars.GetValueOrDefault("met")) is { Length: > 0 } met
+                ? met
                 : null,
             CreatedAt = Yaml.ParseDate(scalars.GetValueOrDefault("createdAt")),
             UpdatedAt = Yaml.ParseDate(scalars.GetValueOrDefault("updatedAt")),

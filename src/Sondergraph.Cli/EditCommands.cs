@@ -70,6 +70,114 @@ internal static class EditCommands
         });
     }
 
+    internal static int Met(string[] args)
+    {
+        // sg met <person> [<how>] [--clear]
+        var clear = args.Contains("--clear", StringComparer.Ordinal);
+        var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
+
+        // Collect positionals while skipping flag values, so --workspace's argument is never
+        // mistaken for the connection text.
+        var positional = new List<string>();
+
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] is "--workspace" or "-w")
+            {
+                i++;
+                continue;
+            }
+
+            if (!args[i].StartsWith('-'))
+            {
+                positional.Add(args[i]);
+            }
+        }
+
+        var personArg = positional.FirstOrDefault();
+
+        // Everything after the person is the value, so "the climbing gym" needs no quoting.
+        var value = positional.Count > 1 ? string.Join(' ', positional.Skip(1)) : null;
+
+        if (personArg is null)
+        {
+            Console.Error.WriteLine("sg: usage: sg met <person|id> [<how you know them>] [--clear]");
+            return ExitCode.Usage;
+        }
+
+        var located = Workspace.Locate(workspaceArg);
+
+        if (!located.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(located);
+            return ExitCode.MapExitCode(located.Code);
+        }
+
+        var store = new PersonStore(located.ValueOrThrow());
+
+        if (value is null && !clear)
+        {
+            var found = PersonCommands.FindPerson(store, personArg);
+
+            if (!found.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(found);
+                return ExitCode.MapExitCode(found.Code);
+            }
+
+            var person = found.ValueOrThrow();
+
+            Console.WriteLine(person.HowWeMet is null
+                ? $"{person.Name}: no connection recorded."
+                : $"{person.Name}: met via {ConnectionKinds.Display(person.HowWeMet)}.");
+
+            var everyone = store.ListAll(out _);
+
+            if (everyone.IsOk)
+            {
+                var inUse = ConnectionKinds.InUse(everyone.ValueOrThrow());
+
+                if (inUse.Count > 0)
+                {
+                    Console.WriteLine(
+                        $"  in use: {string.Join(", ", inUse.Select(ConnectionKinds.Display))}");
+                }
+            }
+
+            return ExitCode.Success;
+        }
+
+        return WithPerson(workspaceArg, personArg, "sg met", (editor, edStore, person) =>
+        {
+            if (!clear && value is not null)
+            {
+                var everyone = edStore.ListAll(out _);
+                var inUse = everyone.IsOk ? ConnectionKinds.InUse(everyone.ValueOrThrow()) : [];
+
+                if (ConnectionKinds.SuggestExisting(value, inUse) is { } suggestion)
+                {
+                    Console.Error.WriteLine(
+                        $"sg: warning: '{value}' looks like '{ConnectionKinds.Display(suggestion)}', "
+                        + "which is already in use.");
+                }
+            }
+
+            var result = editor.SetHowWeMet(person.Id, clear ? null : value);
+
+            if (!result.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(result);
+                return ExitCode.MapExitCode(result.Code);
+            }
+
+            Console.WriteLine(clear
+                ? $"Cleared the connection for {person.Name}."
+                : $"{person.Name}: met via {ConnectionKinds.Display(value)}.");
+
+            return ExitCode.Success;
+        });
+    }
+
     internal static int Preferred(string[] args)
     {
         // sg preferred <person> [<channel>] [--clear]

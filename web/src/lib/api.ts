@@ -24,6 +24,8 @@ export interface PersonSummary {
   tierLabel: string
   preferred: string | null
   preferredLabel: string
+  howWeMet: string | null
+  howWeMetLabel: string
   phones: string[]
   emails: string[]
   locations: LocationSummary[]
@@ -299,6 +301,17 @@ export const api = {
    * When nobody has set one, the server returns sensible suggestions flagged as such.
    */
   channels: (signal?: AbortSignal) => request<ChannelsResponse>('/api/channels', signal),
+
+  /** How-you-know-them values in use, derived from the people who have one. */
+  connections: (signal?: AbortSignal) =>
+    request<ChannelsResponse>('/api/connections', signal),
+
+  /** Records how you know someone; the server returns a didYouMean hint on a near-match. */
+  setHowWeMet: async (
+    id: string,
+    howWeMet: string | null,
+  ): Promise<{ didYouMean: string | null }> =>
+    patch(`/api/people/${encodeURIComponent(id)}/met`, { howWeMet }),
 
   /** Sets the preferred channel; the server returns a didYouMean hint on a near-match. */
   setPreferred: async (

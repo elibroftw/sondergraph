@@ -50,6 +50,9 @@ public sealed record SearchQuery
     /// <summary>Tags the contact must have one of.</summary>
     public IReadOnlyList<string> Tags { get; init; } = [];
 
+    /// <summary>How-you-know-them values the contact must have one of.</summary>
+    public IReadOnlyList<string> Met { get; init; } = [];
+
     /// <summary>
     /// Whether the contact must be reachable (has a phone or email), or must NOT be.
     /// </summary>
@@ -64,7 +67,7 @@ public sealed record SearchQuery
     public bool IsEmpty =>
         Terms.Count == 0 && Platforms.Count == 0 && Tiers.Count == 0
         && Has.Count == 0 && Places.Count == 0 && Tags.Count == 0
-        && Reachable is null;
+        && Met.Count == 0 && Reachable is null;
 
     /// <summary>
     /// Short names users actually type, mapped to platform keys.
@@ -118,6 +121,7 @@ public sealed record SearchQuery
         var has = new List<string>();
         var places = new List<string>();
         var tags = new List<string>();
+        var met = new List<string>();
         bool? reachable = null;
 
         foreach (var token in Tokenise(raw))
@@ -164,6 +168,10 @@ public sealed record SearchQuery
                     tags.Add(value.TrimStart('#'));
                     break;
 
+                case "met" or "via" or "know":
+                    met.Add(ConnectionKinds.Normalise(value));
+                    break;
+
                 case "reachable" or "contactable":
                     reachable = value.ToLowerInvariant() switch
                     {
@@ -193,6 +201,7 @@ public sealed record SearchQuery
             Has = has.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Places = places.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Tags = tags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            Met = met.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Reachable = reachable,
         };
     }
@@ -291,6 +300,13 @@ public sealed record SearchQuery
         if (Tags.Count > 0
             && !Tags.Any(wanted => person.Tags.Any(have =>
                 have.Contains(wanted, StringComparison.OrdinalIgnoreCase))))
+        {
+            return false;
+        }
+
+        if (Met.Count > 0
+            && !Met.Any(wanted => string.Equals(
+                ConnectionKinds.Normalise(person.HowWeMet), wanted, StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }

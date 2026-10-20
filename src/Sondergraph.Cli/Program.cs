@@ -34,6 +34,7 @@ public static class Program
             "tag" or "tags" => EditCommands.Tag(args),
             "locate" or "location" => EditCommands.Locate(args),
             "preferred" or "channel" => EditCommands.Preferred(args),
+            "met" or "via" => EditCommands.Met(args),
             "rename" => EditCommands.Rename(args),
             "graft" or "merge" => MergeCommands.Graft(args),
             "ungraft" or "unmerge" => MergeCommands.Ungraft(args),
@@ -114,6 +115,7 @@ public static class Program
         Console.WriteLine("  tag <person> <tag>     Add a tag (--remove to drop one).");
         Console.WriteLine("  locate <person> <place>  Record a location (--kind home|work|other).");
         Console.WriteLine("  preferred <person> [ch]  How they prefer to be contacted (--clear to unset).");
+        Console.WriteLine("  met <person> <how>     How you know them, e.g. work, university.");
         Console.WriteLine("  rename <person> <name> Rename, keeping the id.");
         Console.WriteLine();
         Console.WriteLine("Merging:");

@@ -250,8 +250,17 @@ public static class SondergraphEndpoints
         // under scraped Instagram handles, which look like noise and make the app appear to
         // be working badly when it is working well. Sorting by evidence puts the people the
         // user can actually contact at the top, which is what the mass contact view is for.
+        // Relationship first: family, then best, close, friend, acquaintance, then unrated.
+        // This replaced a contactability ordering (has a phone, then most sources, then has
+        // an email). That ordering was a reasonable default before anyone rated a contact,
+        // but it buried a best friend under whoever happened to have a phone number. The
+        // user stated the intended order explicitly.
+        //
+        // Contactability is kept as the tie-break WITHIN a tier, because when two people are
+        // equally close, the one you can actually reach is the more useful row.
         var materialised = people
-            .OrderByDescending(p => p.Phones.Count > 0)
+            .OrderBy(p => RelationshipOrder.Rank(p.Tier))
+            .ThenByDescending(p => p.Phones.Count > 0)
             .ThenByDescending(p => p.Sources.Distinct(StringComparer.OrdinalIgnoreCase).Count())
             .ThenByDescending(p => p.Emails.Count > 0)
             .ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)

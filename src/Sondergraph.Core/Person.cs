@@ -82,6 +82,37 @@ public sealed record PlatformAccount(
 }
 
 /// <summary>
+/// The order relationships sort in, closest first.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Deliberately separate from the <see cref="ContactTier"/> numeric values. Those run
+/// Unknown=0 up to Family=5, which is the order the tiers were added, not the order anyone
+/// would read them in. Sorting by the enum would put unrated contacts first and family last -
+/// the exact opposite of useful.
+/// </para>
+/// <para>
+/// Family sits above the friend scale rather than inside it: a family member is not a
+/// "closer friend", and a list that interleaves the two reads strangely. Within the friend
+/// scale the order is Best, Close, Friend, Acquaintance, then unrated last, because an
+/// unrated contact is one you have not thought about yet.
+/// </para>
+/// </remarks>
+public static class RelationshipOrder
+{
+    /// <summary>Sort rank for a tier; lower is closer.</summary>
+    public static int Rank(ContactTier tier) => tier switch
+    {
+        ContactTier.Family => 0,
+        ContactTier.Best => 1,
+        ContactTier.Close => 2,
+        ContactTier.Friend => 3,
+        ContactTier.Acquaintance => 4,
+        _ => 5,
+    };
+}
+
+/// <summary>
 /// Wire names for <see cref="ContactTier"/>.
 /// </summary>
 /// <remarks>

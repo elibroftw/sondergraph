@@ -132,10 +132,10 @@
       <span class="hint">Ctrl+Enter to save · Esc to cancel</span>
     </div>
   {:else}
+    <!-- No empty-state text here: an "Add note" button already says the note does not exist,
+         and saying it twice in the same few pixels is noise. -->
     {#if saved.trim()}
       <div class="rendered">{@html renderMarkdown(saved)}</div>
-    {:else}
-      <p class="muted">No note yet.</p>
     {/if}
 
     <div class="actions">

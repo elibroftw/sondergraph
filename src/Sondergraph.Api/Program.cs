@@ -83,7 +83,12 @@ app.MapFallback(async context =>
         return;
     }
 
-    var index = Path.Combine(app.Environment.WebRootPath ?? "wwwroot", "index.html");
+    // Use the configured web root, not app.Environment.WebRootPath. The latter ignores
+    // --web-root, so the SPA fallback served a STALE index.html from the content root while
+    // the static middleware served the current one. The symptom was subtle and awful: the
+    // page loaded, then 404'd on a JavaScript file the new index.html no longer referenced,
+    // so the app rendered blank with no obvious cause.
+    var index = Path.Combine(webRoot ?? app.Environment.WebRootPath ?? "wwwroot", "index.html");
 
     if (File.Exists(index))
     {

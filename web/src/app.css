@@ -1313,3 +1313,80 @@ ul.plain a,
     transform: none;
   }
 }
+
+/* ── Inline name editing ───────────────────────────────────────────────────────── */
+
+.name-block h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The edit affordance is subtle until hovered: it should be discoverable, not shouty.
+   Most records keep a decent name; only the handle-named ones need this often. */
+.name-edit-btn {
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.name-block h2:hover .name-edit-btn,
+.name-edit-btn:focus-visible {
+  opacity: 1;
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.name-edit {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.name-edit input {
+  flex: 1;
+  min-width: 140px;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.name-edit input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.name-edit button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.name-edit button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.name-edit button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

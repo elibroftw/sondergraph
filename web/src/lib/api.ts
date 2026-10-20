@@ -321,6 +321,11 @@ export const api = {
   connections: (signal?: AbortSignal) =>
     request<ChannelsResponse>('/api/connections', signal),
 
+  /** Renames a person. The id is unchanged, so notes and merges stay attached. */
+  rename: async (id: string, name: string): Promise<void> => {
+    await patch(`/api/people/${encodeURIComponent(id)}/name`, { name })
+  },
+
   /** Records how you know someone; the server returns a didYouMean hint on a near-match. */
   setHowWeMet: async (
     id: string,

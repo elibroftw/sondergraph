@@ -92,6 +92,7 @@ public static class SondergraphEndpoints
         api.MapGet("/channels", ListChannels);
 
         api.MapPatch("/people/{id}/met", PatchHowWeMet);
+        api.MapPatch("/people/{id}/name", PatchName);
         api.MapGet("/connections", ListConnections);
 
         // Merging. POST /api/merges creates one; DELETE reverses it. Both are explicit
@@ -370,6 +371,7 @@ public static class SondergraphEndpoints
 
     private sealed record PreferredRequest(string? Channel);
     private sealed record MetRequest(string? HowWeMet);
+    private sealed record NameRequest(string? Name);
 
     private sealed record TierRequest(string? Tier);
     private sealed record TagsRequest(List<string>? Add, List<string>? Remove);
@@ -565,6 +567,43 @@ public static class SondergraphEndpoints
     }
 
     /// <summary>How-you-know-them values in use, for the suggestion list.</summary>
+    /// <summary>
+    /// Renames a person.
+    /// </summary>
+    /// <remarks>
+    /// Needed most for records whose name is a platform handle. An Instagram contact arrives
+    /// as "abdullah_dabbagh_" because that is all the export contains, and without a rename
+    /// the app offers no way to give them a real first and last name.
+    ///
+    /// The id is deliberately unchanged: it is the directory name that notes, media and merge
+    /// records refer to.
+    /// </remarks>
+    private static IResult PatchName(WorkspaceProvider provider, string id, NameRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return Results.Json(
+                new { error = "A name cannot be empty.", code = nameof(ErrorCode.Unknown) },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var changed = new PersonEditor(store.ValueOrThrow()).Rename(id, request.Name);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        return Results.Ok(new { personId = id, name = request.Name.Trim() });
+    }
+
     private static IResult ListConnections(WorkspaceProvider provider)
     {
         var store = provider.Store();

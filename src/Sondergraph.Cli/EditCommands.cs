@@ -70,6 +70,85 @@ internal static class EditCommands
         });
     }
 
+    /// <summary>
+    /// Deletes people whose only contact detail is a machine-generated address.
+    /// </summary>
+    /// <remarks>
+    /// Dry run by default. These records look like contacts but are usually notification
+    /// senders - a GitHub thread synced from a mailbox, named after the repository - so
+    /// removing them is routine, but destructive enough to want previewing.
+    /// </remarks>
+    internal static int Purge(string[] args)
+    {
+        var apply = args.Contains("--yes", StringComparer.Ordinal);
+        var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
+        var located = Workspace.Locate(workspaceArg);
+
+        if (!located.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(located);
+            return ExitCode.MapExitCode(located.Code);
+        }
+
+        var store = new PersonStore(located.ValueOrThrow());
+        var loaded = store.ListAll(out _);
+
+        if (!loaded.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(loaded);
+            return ExitCode.MapExitCode(loaded.Code);
+        }
+
+        var editor = new PersonEditor(store);
+        var candidates = loaded.ValueOrThrow()
+            .Where(p => p.Emails.Count > 0 && p.Emails.All(e => !ContactEmails.IsPersonAddress(e)))
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            Console.WriteLine("No machine-generated contacts found.");
+            return ExitCode.Success;
+        }
+
+        Console.WriteLine(
+            $"{candidates.Count} contact(s) whose every email is machine-generated"
+            + (apply ? ":" : " - re-run with --yes to remove:"));
+
+        var removed = 0;
+
+        foreach (var person in candidates)
+        {
+            var result = apply ? editor.DeleteIfEmpty(person.Id) : null;
+
+            var status = result is null
+                ? "would remove"
+                : result.IsOk
+                    ? "removed"
+                    : "kept";
+
+            if (result is not null && result.IsOk)
+            {
+                removed++;
+            }
+
+            Console.WriteLine($"  {status,-12} {person.Name}");
+            Console.WriteLine($"               {string.Join(", ", person.Emails)}");
+
+            if (result is not null && !result.IsOk)
+            {
+                Console.WriteLine($"               {result.Message}");
+            }
+        }
+
+        if (apply)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"Removed {removed}. Moved to data/people/.trash/ so this can be undone.");
+        }
+
+        return ExitCode.Success;
+    }
+
     internal static int Met(string[] args)
     {
         // sg met <person> [<how>] [--clear]

@@ -141,7 +141,11 @@ public sealed class LinkedinParser : IPlatformParser
                 Handle = name,
                 DisplayName = name,
                 ProfileUrl = string.IsNullOrWhiteSpace(url) ? null : url.Trim(),
-                Emails = string.IsNullOrWhiteSpace(email) ? [] : [email.Trim()],
+                // Notification addresses are not people. A LinkedIn export can carry rows
+                // harvested from a mailbox, and those include reply+...@reply.github.com.
+                Emails = string.IsNullOrWhiteSpace(email)
+                    ? []
+                    : [.. ContactEmails.KeepPersonAddresses([email])],
                 Extra = extra,
             };
 

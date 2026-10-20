@@ -84,6 +84,76 @@ public sealed class PersonEditor
     /// duplicated, so correcting a typo does not leave two entries.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Deletes a person, if they contain nothing a user would miss.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Exists for records that should never have been contacts at all: GitHub thread
+    /// notifications synced from a mailbox become people named after a repository, holding
+    /// nothing but machine-generated addresses.
+    /// </para>
+    /// <para>
+    /// The guard is the point. Deletion is irreversible, and the records most likely to look
+    /// like junk are also the ones a merge may have absorbed real data into. A person with a
+    /// phone, email, tier, tag, location, note or description is refused, so this can only
+    /// remove genuine shells.
+    /// </para>
+    /// </remarks>
+    public Result DeleteIfEmpty(string personId)
+    {
+        var loaded = _store.Load(personId);
+
+        if (!loaded.IsOk)
+        {
+            return Result.Fail(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var person = loaded.ValueOrThrow();
+
+        // Machine addresses do not count as content: they are precisely what makes a record
+        // junk, so counting them made the guard refuse every record it exists to remove.
+        // The first version did exactly that and removed nothing.
+        var hasRealEmail = person.Emails.Any(ContactEmails.IsPersonAddress);
+
+        var hasContent =
+            person.Phones.Count > 0
+            || hasRealEmail
+            || person.Tier != ContactTier.Unknown
+            || person.Tags.Count > 0
+            || person.Locations.Count > 0
+            || person.Notes.Count > 0
+            || !string.IsNullOrWhiteSpace(person.HowWeMet)
+            || !string.IsNullOrWhiteSpace(person.PreferredChannel);
+
+        if (hasContent)
+        {
+            return Result.Fail(
+                ErrorCode.Unknown,
+                $"{person.Name} still has details recorded, so it was not deleted.");
+        }
+
+        // Moved aside rather than deleted, so a mistaken purge can be undone by moving the
+        // directory back. Notes and media live inside it.
+        var directory = _store.DirectoryFor(personId);
+
+        if (!Directory.Exists(directory))
+        {
+            return Result.Fail(ErrorCode.Unknown, "That person's directory no longer exists.");
+        }
+
+        var trash = Path.Combine(_store.PeopleDirectory, ".trash");
+        Directory.CreateDirectory(trash);
+
+        var destination = Path.Combine(
+            trash,
+            $"{Path.GetFileName(directory)}-{DateTime.UtcNow:yyyyMMddHHmmss}");
+
+        Directory.Move(directory, destination);
+
+        return Result.Ok();
+    }
+
     public Result AddAccount(string personId, string platform, string handle, string? profileUrl = null)
     {
         if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(handle))

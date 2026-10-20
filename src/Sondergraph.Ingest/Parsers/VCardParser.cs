@@ -414,7 +414,8 @@ public sealed class VCardParser : IPlatformParser
             Handle = name,
             DisplayName = name,
             Phones = phones,
-            Emails = emails,
+            // Same rule here: a vCard can be synced from anything, including a mailbox.
+            Emails = [.. ContactEmails.KeepPersonAddresses(emails)],
             Groups = groups.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             PhotoPath = photoRef,
             PhotoBytes = photoBytes,

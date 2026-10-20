@@ -411,7 +411,29 @@ The dual-pane trace view needs notes to interoperate without owning them.
 - **Rule: never make an external app the only copy.** Import/export, not delegation.
   Proprietary stores change format without notice.
 
-### 6.2 Platform ingestion — posture
+### 6.2 Platform ingestion
+
+**Architecture: [ADR 0003](./docs/decisions/0003-per-platform-parsers.md) — each platform
+gets its own parser, behind a shared pipeline.**
+
+The pipeline is three stages, and the split between the first two is the important part:
+
+| Stage | Per-platform? | Reproducible? | Job |
+|---|---|---|---|
+| **Acquire** | Yes — `IAcquirer` | No (network, rate limits) | API calls or export import → `data/raw/<platform>/` |
+| **Parse** | **Yes — `IPlatformParser`** | **Yes (pure)** | Files → platform-neutral records |
+| **Materialise** | No — shared | Yes | Records → `person.md`, accounts, merge candidates |
+
+**A parser is a pure function from files to records.** No network, no credentials, no clock,
+no knowledge of the workspace lock. That is what makes parsers testable against fixtures and
+safe to re-run — and it is why a parser bug is fixable by re-parsing instead of re-fetching
+an export that may take days to regenerate.
+
+Parsers emit **observations**, not `Person`. A parser cannot know that
+`@ada@example.social` and `Ada Lovelace` are the same human — that is identity resolution,
+and it is deliberately not the parser's job (§4.3, §10 Q3).
+
+#### Posture
 
 Needs an explicit stance, not because it is a legal minefield in the abstract, but
 because platform ToS and local law vary by jurisdiction and change. Concretely:
@@ -420,12 +442,19 @@ because platform ToS and local law vary by jurisdiction and change. Concretely:
   are both more stable and less fraught than scraping.
 - **Authenticated, user-initiated, rate-limited.** No background crawling as a default.
 - **Document the posture** in the README so users are not surprised.
-- **Design assumption:** ingestion is pluggable per platform, and each adapter declares
-  its own mechanism and constraints. Platforms without a viable path simply do not get an
-  adapter, and that is acceptable.
+- **Platforms without a viable path simply do not get an adapter**, and that is acceptable.
 
-This is not a reason to avoid the feature — it is a reason to build the adapter
-interface carefully and be honest in the docs.
+This is not a reason to avoid the feature — it is a reason to build the parser interface
+carefully and be honest in the docs.
+
+#### Developing a new platform: fixtures first
+
+1. Obtain a real export. Hand-place it under `data/raw/<platform>/`.
+2. Write a **failing fixture test** describing what should come out.
+3. Write the parser until it passes.
+
+Step 1 is the real work — reverse-engineering the schema. The interface exists so that this
+work lands in one file instead of everywhere.
 
 ---
 
@@ -500,7 +529,12 @@ Local IPC and the handshake contract are in
 
 ## 10. Open questions
 
-1. **Platform priority.** Which ingest adapters first? This drives the `raw/` schema.
+1. **Platform priority — still open, and now the main blocker on feature work.** Which
+   platform gets the first parser? Candidates and tradeoffs are in task 0011. Note that
+   *choosing* is cheap; the expensive part is obtaining a real export and reverse-engineering
+   its schema, which is genuinely the work (ADR 0003). The architecture no longer depends on
+   this answer — per-platform parsers mean the decision only affects which parser is written
+   first.
 2. ~~**Graph index format.**~~ **Resolved** — no graph index at all; built on demand in
    memory (§4.2). SQLite is deferred as a disposable cache, and only if `raw/` scale
    demands it.

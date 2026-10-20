@@ -15,6 +15,7 @@ deeper dives behind its open questions.
 |---|---|---|
 | CLI/backend layering | Shared core library (Option A) | [ADR 0001](decisions/0001-shared-core-library.md) |
 | Core language | **C#, not Rust** | [ADR 0002](decisions/0002-csharp-core-not-rust.md) |
+| Ingest architecture | **Per-platform parsers** behind a shared pipeline; acquire ≠ parse | [ADR 0003](decisions/0003-per-platform-parsers.md) |
 | Storage | Files, not a database; no graph index | [DESIGN.md](../DESIGN.md) §4.2 |
 | Task tracking format | `taskmd` spec v1.2 | [markdown-trackers.md](markdown-trackers.md) |
 | Desktop shell | Photino.NET (Tauri runner-up) | [architecture-precedents.md](architecture-precedents.md) §6 |

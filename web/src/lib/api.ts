@@ -22,6 +22,8 @@ export interface PersonSummary {
   name: string
   tier: string
   tierLabel: string
+  preferred: string | null
+  preferredLabel: string
   phones: string[]
   emails: string[]
   locations: LocationSummary[]
@@ -66,6 +68,18 @@ export interface Health {
 export interface NoteResponse {
   personId: string
   body: string
+}
+
+export interface Channel {
+  value: string
+  label: string
+  count: number
+}
+
+export interface ChannelsResponse {
+  channels: string[]
+  suggested: boolean
+  inUse: Channel[]
 }
 
 export interface DuplicateGroup {
@@ -277,6 +291,21 @@ export const api = {
     )
     return result.locations
   },
+
+  /**
+   * Channels available for the dropdown.
+   *
+   * Derived server-side from the people who use them, so the list cannot hold a leftover.
+   * When nobody has set one, the server returns sensible suggestions flagged as such.
+   */
+  channels: (signal?: AbortSignal) => request<ChannelsResponse>('/api/channels', signal),
+
+  /** Sets the preferred channel; the server returns a didYouMean hint on a near-match. */
+  setPreferred: async (
+    id: string,
+    channel: string | null,
+  ): Promise<{ didYouMean: string | null }> =>
+    patch(`/api/people/${encodeURIComponent(id)}/preferred`, { channel }),
 
   /** Merges `absorbed` into `surviving`; the survivor keeps its id. */
   merge: async (surviving: string, absorbed: string): Promise<string> => {

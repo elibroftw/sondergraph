@@ -33,6 +33,7 @@ public static class Program
             "tier" or "relationship" => EditCommands.Tier(args),
             "tag" or "tags" => EditCommands.Tag(args),
             "locate" or "location" => EditCommands.Locate(args),
+            "preferred" or "channel" => EditCommands.Preferred(args),
             "rename" => EditCommands.Rename(args),
             "graft" or "merge" => MergeCommands.Graft(args),
             "ungraft" or "unmerge" => MergeCommands.Ungraft(args),
@@ -112,6 +113,7 @@ public static class Program
         Console.WriteLine("  tier <person> <tier>   Set the relationship (friend, close, best, ...).");
         Console.WriteLine("  tag <person> <tag>     Add a tag (--remove to drop one).");
         Console.WriteLine("  locate <person> <place>  Record a location (--kind home|work|other).");
+        Console.WriteLine("  preferred <person> [ch]  How they prefer to be contacted (--clear to unset).");
         Console.WriteLine("  rename <person> <name> Rename, keeping the id.");
         Console.WriteLine();
         Console.WriteLine("Merging:");

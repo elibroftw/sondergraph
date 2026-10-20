@@ -70,6 +70,118 @@ internal static class EditCommands
         });
     }
 
+    internal static int Preferred(string[] args)
+    {
+        // sg preferred <person> [<channel>] [--clear]
+        var clear = args.Contains("--clear", StringComparer.Ordinal);
+        var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
+
+        // Skip flag VALUES as well as flags. Taking every non-flag token treated the
+        // --workspace path as the channel, so reading it back reported the path as the value.
+        var positional = new List<string>();
+
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] is "--workspace" or "-w")
+            {
+                i++;
+                continue;
+            }
+
+            if (!args[i].StartsWith('-'))
+            {
+                positional.Add(args[i]);
+            }
+        }
+
+        var personArg = positional.FirstOrDefault();
+        var channel = positional.Count > 1 ? positional[1] : null;
+
+        if (personArg is null)
+        {
+            Console.Error.WriteLine("sg: usage: sg preferred <person|id> [<channel>] [--clear]");
+            return ExitCode.Usage;
+        }
+
+        var located = Workspace.Locate(workspaceArg);
+
+        if (!located.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(located);
+            return ExitCode.MapExitCode(located.Code);
+        }
+
+        var store = new PersonStore(located.ValueOrThrow());
+
+        // No channel and no --clear: show the current value and the channels already in use,
+        // so the user can see the vocabulary before inventing one.
+        if (channel is null && !clear)
+        {
+            var found = PersonCommands.FindPerson(store, personArg);
+
+            if (!found.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(found);
+                return ExitCode.MapExitCode(found.Code);
+            }
+
+            var person = found.ValueOrThrow();
+
+            Console.WriteLine(person.PreferredChannel is null
+                ? $"{person.Name} has no preferred channel."
+                : $"{person.Name} prefers {PreferredChannels.Display(person.PreferredChannel)}.");
+
+            var everyone = store.ListAll(out _);
+
+            if (everyone.IsOk)
+            {
+                var inUse = PreferredChannels.InUse(everyone.ValueOrThrow());
+
+                if (inUse.Count > 0)
+                {
+                    Console.WriteLine(
+                        $"  in use: {string.Join(", ", inUse.Select(PreferredChannels.Display))}");
+                }
+            }
+
+            return ExitCode.Success;
+        }
+
+        return WithPerson(workspaceArg, personArg, "sg preferred", (editor, edStore, person) =>
+        {
+            // Warn about a near-match before writing. On the command line this is the only
+            // chance to see the typo next to the channel that was meant.
+            if (!clear && channel is not null)
+            {
+                var everyone = edStore.ListAll(out _);
+                var inUse = everyone.IsOk ? PreferredChannels.InUse(everyone.ValueOrThrow()) : [];
+
+                if (PreferredChannels.SuggestExisting(channel, inUse) is { } suggestion)
+                {
+                    Console.Error.WriteLine(
+                        $"sg: warning: '{channel}' looks like '{PreferredChannels.Display(suggestion)}', "
+                        + "which is already in use.");
+                    Console.Error.WriteLine(
+                        "sg: re-run the same command to set it anyway if that spelling is intended.");
+                }
+            }
+
+            var result = editor.SetPreferredChannel(person.Id, clear ? null : channel);
+
+            if (!result.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(result);
+                return ExitCode.MapExitCode(result.Code);
+            }
+
+            Console.WriteLine(clear
+                ? $"Cleared the preferred channel for {person.Name}."
+                : $"{person.Name} prefers {PreferredChannels.Display(channel)}.");
+
+            return ExitCode.Success;
+        });
+    }
+
     internal static int Tag(string[] args)
     {
         // sg tag <person> [<tag>] [--remove]

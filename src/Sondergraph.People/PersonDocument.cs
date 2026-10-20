@@ -44,6 +44,13 @@ public static class PersonDocument
 
         output.Append("tier: ").Append(TierToWire(person.Tier)).Append('\n');
 
+        // Omitted entirely when unset rather than written as "null": the file stays clean and
+        // an unset channel is not a value worth recording.
+        if (!string.IsNullOrWhiteSpace(person.PreferredChannel))
+        {
+            output.Append("preferred: ").Append(Yaml.Scalar(person.PreferredChannel)).Append('\n');
+        }
+
         if (person.Locations.Count == 0)
         {
             output.Append("locations: []\n");
@@ -154,6 +161,9 @@ public static class PersonDocument
             Tags = lists.GetValueOrDefault("tags", []),
             Sources = lists.GetValueOrDefault("sources", []),
             Tier = ParseTier(scalars.GetValueOrDefault("tier")),
+            PreferredChannel = PreferredChannels.Normalise(scalars.GetValueOrDefault("preferred")) is { Length: > 0 } channel
+                ? channel
+                : null,
             CreatedAt = Yaml.ParseDate(scalars.GetValueOrDefault("createdAt")),
             UpdatedAt = Yaml.ParseDate(scalars.GetValueOrDefault("updatedAt")),
         };

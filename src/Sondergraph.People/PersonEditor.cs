@@ -34,6 +34,22 @@ public sealed class PersonEditor
     public Result SetTier(string personId, ContactTier tier) =>
         Mutate(personId, person => person with { Tier = tier });
 
+    /// <summary>Sets how this person prefers to be contacted, or clears it.</summary>
+    /// <remarks>
+    /// The channel is normalised on write, so "Signal" and "signal" cannot become two entries
+    /// in the derived dropdown. An empty value clears the field rather than storing an empty
+    /// string, which would otherwise count as a channel with no name.
+    /// </remarks>
+    public Result SetPreferredChannel(string personId, string? channel)
+    {
+        var normalised = PreferredChannels.Normalise(channel);
+
+        return Mutate(personId, person => person with
+        {
+            PreferredChannel = normalised.Length == 0 ? null : normalised,
+        });
+    }
+
     /// <summary>
     /// Adds a tag, keeping the list sorted and free of duplicates.
     /// </summary>

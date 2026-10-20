@@ -184,6 +184,25 @@ public sealed record Person
     /// <summary>How close this contact is.</summary>
     public ContactTier Tier { get; init; } = ContactTier.Unknown;
 
+    /// <summary>
+    /// How this person prefers to be contacted, or null when unset.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A free-form string rather than an enum. The requirement is that the channel list
+    /// contains only channels actually in use, with no leftovers from typos — and that is only
+    /// guaranteed if the list is <em>derived</em> from the people who use them. A fixed enum
+    /// could not grow ("Telegram", "Matrix") without a code change; a separate stored list
+    /// would drift from what is actually written on people.
+    /// </para>
+    /// <para>
+    /// Values are normalised on write (trimmed, lowercased) so "Signal", "signal" and
+    /// " signal " are the same channel. Display capitalisation comes from
+    /// <see cref="PreferredChannels"/> rather than being stored, so it cannot vary per record.
+    /// </para>
+    /// </remarks>
+    public string? PreferredChannel { get; init; }
+
     /// <summary>Platform accounts belonging to this person.</summary>
     public IReadOnlyList<PlatformAccount> Accounts { get; init; } = [];
 
@@ -251,6 +270,13 @@ public sealed record Person
         foreach (var email in Emails)
         {
             yield return email;
+        }
+
+        // The preferred channel is searchable: "who prefers Signal?" is the reason to record
+        // it rather than just knowing it.
+        if (!string.IsNullOrWhiteSpace(PreferredChannel))
+        {
+            yield return PreferredChannel;
         }
 
         // Tags are searchable. A tag you cannot search for is decoration: the point of

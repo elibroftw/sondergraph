@@ -80,6 +80,12 @@ public static class SondergraphEndpoints
         api.MapPatch("/people/{id}/tier", PatchTier);
         api.MapPatch("/people/{id}/tags", PatchTags);
         api.MapPatch("/people/{id}/locations", PatchLocations);
+        api.MapPatch("/people/{id}/preferred", PatchPreferred);
+
+        // The channel list is DERIVED from usage, never stored. This endpoint is what makes
+        // the dropdown incapable of holding a leftover: a channel exists exactly while some
+        // person has it set.
+        api.MapGet("/channels", ListChannels);
 
         // Merging. POST /api/merges creates one; DELETE reverses it. Both are explicit
         // verbs on a resource rather than a "merge" flag on a person, so the result has an
@@ -355,6 +361,8 @@ public static class SondergraphEndpoints
 
     private sealed record MergeRequest(string? Surviving, string? Absorbed, string? Reason);
 
+    private sealed record PreferredRequest(string? Channel);
+
     private sealed record TierRequest(string? Tier);
     private sealed record TagsRequest(List<string>? Add, List<string>? Remove);
     private sealed record LocationRequest(string? Place, string? Kind, string? Note, bool Remove);
@@ -460,6 +468,92 @@ public static class SondergraphEndpoints
                 }),
             })
             : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
+    }
+
+    /// <summary>
+    /// Channels in use, for the dropdown.
+    /// </summary>
+    /// <remarks>
+    /// Computed from the people on every request rather than cached. With a workspace of a
+    /// few thousand contacts that is a cheap scan, and caching a derived list is how it starts
+    /// containing entries nothing uses any more — exactly what this design avoids.
+    /// </remarks>
+    private static IResult ListChannels(WorkspaceProvider provider)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var loaded = store.ValueOrThrow().ListAll(out _);
+
+        if (!loaded.IsOk)
+        {
+            return Problem(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var people = loaded.ValueOrThrow();
+        var inUse = PreferredChannels.InUse(people);
+
+        return Results.Ok(new
+        {
+            // When nobody has chosen a channel, offer sensible starters so a new workspace is
+            // not faced with an empty dropdown.
+            channels = inUse.Count > 0 ? inUse : PreferredChannels.DefaultSuggestions,
+
+            // True when the list is a suggestion rather than derived from real usage, so the
+            // UI can say so.
+            suggested = inUse.Count == 0,
+
+            inUse = inUse.Select(c => new
+            {
+                value = c,
+                label = PreferredChannels.Display(c),
+                count = people.Count(p => string.Equals(
+                    PreferredChannels.Normalise(p.PreferredChannel), c, StringComparison.OrdinalIgnoreCase)),
+            }),
+        });
+    }
+
+    private static IResult PatchPreferred(WorkspaceProvider provider, string id, PreferredRequest request)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var personStore = store.ValueOrThrow();
+        var editor = new PersonEditor(personStore);
+
+        // Warn, but do not block. A near-match to an existing channel is usually a typo, but
+        // it is occasionally a genuinely new channel that happens to resemble one. Blocking
+        // would make that impossible.
+        var loaded = personStore.ListAll(out _);
+        var inUse = loaded.IsOk
+            ? PreferredChannels.InUse(loaded.ValueOrThrow())
+            : [];
+
+        var suggestion = PreferredChannels.SuggestExisting(request.Channel, inUse);
+
+        var changed = editor.SetPreferredChannel(id, request.Channel);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        return Results.Ok(new
+        {
+            personId = id,
+            channel = PreferredChannels.Normalise(request.Channel) is { Length: > 0 } c ? c : null,
+            label = PreferredChannels.Display(request.Channel),
+            // Non-null when the written channel resembles one already in use.
+            didYouMean = suggestion is null ? null : PreferredChannels.Display(suggestion),
+        });
     }
 
     private static IResult CreateMerge(WorkspaceProvider provider, MergeRequest request)
@@ -621,6 +715,8 @@ public static class SondergraphEndpoints
         name = person.Name,
         tier = PersonDocument.TierToWire(person.Tier),
         tierLabel = PersonDocument.DescribeTier(person.Tier),
+        preferred = person.PreferredChannel,
+        preferredLabel = PreferredChannels.Display(person.PreferredChannel),
         phones = person.Phones,
         emails = person.Emails,
         locations = person.Locations.Select(l => new
@@ -649,6 +745,8 @@ public static class SondergraphEndpoints
         aliases = person.Aliases,
         tier = PersonDocument.TierToWire(person.Tier),
         tierLabel = PersonDocument.DescribeTier(person.Tier),
+        preferred = person.PreferredChannel,
+        preferredLabel = PreferredChannels.Display(person.PreferredChannel),
         phones = person.Phones,
         emails = person.Emails,
         tags = person.Tags,

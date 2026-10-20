@@ -26,6 +26,7 @@
     tier={person.tier}
     tags={person.tags}
     locations={person.locations}
+    preferred={person.preferred}
     onchange={onchanged}
   />
 

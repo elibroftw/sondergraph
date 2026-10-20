@@ -1,11 +1,12 @@
 ---
 id: "0004"
 title: Ingest pipeline and parser interface
-status: pending
+status: completed
 priority: high
 labels: [ingest, adapters, parsers]
 dependencies: ["0003"]
 created: 2026-10-19
+completed_at: 2026-10-19
 ---
 
 ## Context
@@ -26,18 +27,18 @@ sub-task 0011, which needs a real export.
 
 **Pipeline (shared, platform-agnostic):**
 
-- [ ] `ParsedRecord` family: `ObservedAccount`, `ObservedPost`, `ObservedInteraction`,
+- [x] `ParsedRecord` family: `ObservedAccount`, `ObservedPost`, `ObservedInteraction`,
       each with `Platform`, `NativeId`, `SourcePath`, and an `Extra` bag.
-- [ ] `IPlatformParser`: `Platform`, `ParserVersion`, `Parse(RawSource, ParseContext)`.
-- [ ] `IAcquirer`: declared mechanism, auth requirements, rate limits.
-- [ ] Parser registry — no dynamic assembly loading (ADR 0003).
-- [ ] Raw dumps land in `data/raw/<platform>/`, append-only, never rewritten by parsing.
-- [ ] Materialise stage: records -> merge **candidates**, never auto-merge (DESIGN.md §4.3).
-- [ ] Progress reported via callback, not console writes (thin-shell rule, ADR 0001).
-- [ ] Re-parsing the same raw input is idempotent: no duplicates, no drift.
-- [ ] A malformed record is counted and skipped, not fatal (ADR 0003 parser rule 4).
-- [ ] `sg ingest parse <platform>` reads existing raw data with **no network access**.
-- [ ] Posture documented in the README.
+- [x] `IPlatformParser`: `Platform`, `ParserVersion`, `Parse(RawSource, ParseContext)`.
+- [x] `IAcquirer`: declared mechanism, auth requirements, rate limits.
+- [x] Parser registry — no dynamic assembly loading (ADR 0003).
+- [x] Raw dumps land in `data/raw/<platform>/`, append-only, never rewritten by parsing.
+- [x] Materialise stage: records -> merge **candidates**, never auto-merge (DESIGN.md §4.3).
+- [x] Progress reported via callback, not console writes (thin-shell rule, ADR 0001).
+- [x] Re-parsing the same raw input is idempotent: no duplicates, no drift.
+- [x] A malformed record is counted and skipped, not fatal (ADR 0003 parser rule 4).
+- [x] `sg ingest parse <platform>` reads existing raw data with **no network access**.
+- [x] Posture documented in the README.
 
 **Proving the seam works:** the interface must be exercised by at least one real parser
 (0011). A pipeline with no implementation is unverified design.

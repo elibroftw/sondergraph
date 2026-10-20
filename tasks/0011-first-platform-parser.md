@@ -1,11 +1,12 @@
 ---
 id: "0011"
 title: First real platform parsers
-status: pending
+status: completed
 priority: high
 labels: [ingest, parsers, schema-discovery]
 dependencies: ["0004"]
 created: 2026-10-19
+completed_at: 2026-10-19
 ---
 
 ## Context
@@ -29,11 +30,11 @@ implementing parsers against documented shapes.
 - [x] Real exports obtained and placed outside the repo.
 - [x] **Findings documented** in `docs/platforms/` — facebook, instagram, vcard,
       google-takeout, linkedin.
-- [ ] `IPlatformParser` implementations, per ADR 0003 rules, `ParserVersion` declared.
-- [ ] Fixture subsets under `tests/fixtures/<platform>/`, **scrubbed of third-party personal
+- [x] `IPlatformParser` implementations, per ADR 0003 rules, `ParserVersion` declared.
+- [x] Fixture subsets under `tests/fixtures/<platform>/`, **scrubbed of third-party personal
       data** (see privacy note below).
-- [ ] Fixture tests pass; malformed-record handling covered by a test.
-- [ ] Re-parse is idempotent against the real exports, not just fixtures.
+- [x] Fixture tests pass; malformed-record handling covered by a test.
+- [x] Re-parse is idempotent against the real exports, not just fixtures.
 
 ## Outcome so far: schema discovery
 

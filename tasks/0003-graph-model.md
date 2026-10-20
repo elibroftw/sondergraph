@@ -1,11 +1,12 @@
 ---
 id: 0003
 title: Person model and on-disk format
-status: pending
+status: completed
 priority: critical
 labels: [core, data-model]
 dependencies: [0001, 0002]
 created: 2026-10-19
+completed_at: 2026-10-19
 ---
 
 ## Context
@@ -21,20 +22,20 @@ automatic matching vs confirmed.
 
 ## Acceptance criteria
 
-- [ ] `Person` type: id, name, aliases, tier, locations, tags, accounts.
-- [ ] Read/write `data/people/<id>/person.md` with YAML frontmatter.
-- [ ] Platform handles stored in `person.md` frontmatter under `accounts:` — **not** a
+- [x] `Person` type: id, name, aliases, tier, locations, tags, accounts.
+- [x] Read/write `data/people/<id>/person.md` with YAML frontmatter.
+- [x] Platform handles stored in `person.md` frontmatter under `accounts:` — **not** a
       separate `accounts.json`.
-- [ ] **Ingest merges into the existing `accounts` list** rather than rewriting the file,
+- [x] **Ingest merges into the existing `accounts` list** rather than rewriting the file,
       so a hand-added alias or location is never lost.
-- [ ] Graph assembled in memory from files on demand; **no `graph.json`**.
-- [ ] Merge (`graft`) is non-destructive and logged to append-only `merges.json`.
-- [ ] Merge is reversible via `sg ungraft <merge-id>`.
-- [ ] Merge appears in `git diff` — the absorbed record is not deleted silently.
-- [ ] Field-level conflict rules: per-field winner, union for list fields (aliases,
+- [x] Graph assembled in memory from files on demand; **no `graph.json`**.
+- [x] Merge (`graft`) is non-destructive and logged to append-only `merges.json`.
+- [x] Merge is reversible via `sg ungraft <merge-id>`.
+- [x] Merge appears in `git diff` — the absorbed record is not deleted silently.
+- [x] Field-level conflict rules: per-field winner, union for list fields (aliases,
       locations, accounts).
-- [ ] Ingested duplicate accounts are surfaced as candidates, **never** auto-merged.
-- [ ] A test asserting round-trip: write a person, read it back, get an equal object.
+- [x] Ingested duplicate accounts are surfaced as candidates, **never** auto-merged.
+- [x] A test asserting round-trip: write a person, read it back, get an equal object.
 
 ## Notes
 

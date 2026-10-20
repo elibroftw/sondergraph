@@ -210,6 +210,38 @@ public sealed class PersonEditorTests : IDisposable
     }
 
     [Fact]
+    public void A_location_becomes_a_searchable_identifier()
+    {
+        // Recording where someone lives is only useful if "who do I know in Berlin?" then
+        // works. Without this the location would be stored and unqueryable.
+        _editor.AddLocation("example-person", "Berlin", LocationKind.Home);
+
+        var found = Load().AllIdentifiers()
+            .Any(i => i.Contains("Berlin", StringComparison.OrdinalIgnoreCase));
+
+        Assert.True(found, "a saved location should appear in the searchable identifiers");
+    }
+
+    [Fact]
+    public void A_location_note_is_searchable_too()
+    {
+        _editor.AddLocation("example-person", "London", LocationKind.Work, "the Shard");
+
+        Assert.Contains(Load().AllIdentifiers(), i => i.Contains("Shard", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Locations_appear_in_the_display_summary()
+    {
+        _editor.AddLocation("example-person", "Oslo", LocationKind.Home);
+
+        var summary = PersonDocument.Describe(Load());
+
+        // The place name, not a count: "Oslo" is informative, "1 location" is not.
+        Assert.Contains("Oslo", summary);
+    }
+
+    [Fact]
     public void Unknown_person_fails_without_creating_one()
     {
         // A typo in an id must not invent a contact.

@@ -208,6 +208,19 @@ public sealed record Person
         {
             yield return email;
         }
+
+        // Locations are searchable too. Recording that someone lives in Berlin is only
+        // useful if "who do I know in Berlin?" then works, and that question is the whole
+        // reason to attach a location in the first place.
+        foreach (var location in Locations)
+        {
+            yield return location.Place;
+
+            if (!string.IsNullOrWhiteSpace(location.Note))
+            {
+                yield return location.Note;
+            }
+        }
     }
 
     /// <summary>Strips everything but digits from a phone number.</summary>

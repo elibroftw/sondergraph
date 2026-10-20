@@ -455,6 +455,14 @@ public static class PersonDocument
             parts.Add(person.Emails.Count == 1 ? "email" : $"{person.Emails.Count} emails");
         }
 
+        // The place names themselves, not a count: "Berlin" tells you something, "1 location"
+        // does not.
+        if (person.Locations.Count > 0)
+        {
+            var places = person.Locations.Select(l => l.Place).Distinct(StringComparer.OrdinalIgnoreCase);
+            parts.Add(string.Join(", ", places));
+        }
+
         return parts.Count == 0
             ? string.Empty
             : string.Join(" · ", parts);

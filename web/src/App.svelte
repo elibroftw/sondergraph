@@ -66,6 +66,27 @@
     }
   }
 
+  /**
+   * Re-fetches the open person and the list after an edit.
+   *
+   * The list matters as much as the panel: changing a tier or renaming affects the row that
+   * is displayed, and a stale list makes the edit look like it did not save.
+   */
+  async function refreshAfterEdit() {
+    if (!selectedId) return
+
+    try {
+      selected = await api.person(selectedId)
+    } catch (e) {
+      error = describe(e)
+    }
+
+    // Only reload the list when the current filter could be affected: a tier change while
+    // filtered by tier can move someone out of view.
+    loadContacts()
+    loadShell()
+  }
+
   function onSearchInput() {
     clearTimeout(searchTimer)
     searchTimer = setTimeout(loadContacts, 180)
@@ -206,7 +227,7 @@
         {#if detailLoading}
           <p class="muted">Loading…</p>
         {:else if selected}
-          <PersonPanel person={selected} />
+          <PersonPanel person={selected} onchanged={refreshAfterEdit} />
         {:else}
           <p class="muted">Select a contact to see everything known about them.</p>
         {/if}

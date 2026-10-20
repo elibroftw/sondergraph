@@ -571,3 +571,109 @@ ul.plain a:hover {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
+
+/* ── Editable person fields (relationship, tags, locations) ─────────────────────── */
+
+.tiers-inline {
+  gap: 4px;
+}
+
+.tiers-inline button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.tag-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 9px;
+  border-radius: 999px;
+  background: var(--hover);
+  border: 1px solid var(--border);
+}
+
+.tag {
+  font-size: 12px;
+}
+
+.tag-remove {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.tag-remove:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.location-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inline-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.inline-add input,
+.inline-add select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  /* Explicit so the control does not inherit page colours and become dark-on-dark. */
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.inline-add input {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-add input:focus,
+.inline-add select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.inline-add button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.inline-add button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.inline-add button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

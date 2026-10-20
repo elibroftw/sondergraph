@@ -92,6 +92,38 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Sends a PATCH and returns the parsed body.
+ *
+ * Shared so the error shape is decoded once: every mutation needs the same treatment, and
+ * duplicating it invites one endpoint silently reporting a bare status instead of the
+ * server's structured message.
+ */
+async function patch<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    let detail: { error?: string; hint?: string; code?: string } = {}
+    try {
+      detail = await response.json()
+    } catch {
+      // Non-JSON error; the status text is all we have.
+    }
+    throw new ApiError(
+      detail.error ?? response.statusText ?? 'Request failed',
+      detail.code ?? 'Unknown',
+      detail.hint ?? null,
+      response.status,
+    )
+  }
+
+  return (await response.json()) as T
+}
+
 async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal })
 
@@ -168,6 +200,31 @@ export const api = {
         response.status,
       )
     }
+  },
+
+  setTier: async (id: string, tier: string): Promise<void> => {
+    await patch(`/api/people/${encodeURIComponent(id)}/tier`, { tier })
+  },
+
+  changeTags: async (id: string, add: string[], remove: string[]): Promise<string[]> => {
+    const result = await patch<{ tags: string[] }>(
+      `/api/people/${encodeURIComponent(id)}/tags`,
+      { add, remove },
+    )
+    return result.tags
+  },
+
+  setLocation: async (
+    id: string,
+    place: string,
+    kind: string,
+    remove = false,
+  ): Promise<LocationSummary[]> => {
+    const result = await patch<{ locations: LocationSummary[] }>(
+      `/api/people/${encodeURIComponent(id)}/locations`,
+      { place, kind, remove },
+    )
+    return result.locations
   },
 
   /** Appends a timestamped entry without replacing anything already written. */

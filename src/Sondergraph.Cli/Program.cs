@@ -30,6 +30,10 @@ public static class Program
             "show" => PersonCommands.Show(args),
             "stats" => PersonCommands.Stats(args),
             "note" or "notes" => NoteCommands.Run(args),
+            "tier" or "relationship" => EditCommands.Tier(args),
+            "tag" or "tags" => EditCommands.Tag(args),
+            "locate" or "location" => EditCommands.Locate(args),
+            "rename" => EditCommands.Rename(args),
             "workspace" or "ws" => DispatchWorkspace(args),
             var unknown => Unknown(unknown),
         };
@@ -102,6 +106,10 @@ public static class Program
         Console.WriteLine("  note <person> --edit   Edit it in $EDITOR.");
         Console.WriteLine("  note <person> --set    Replace it with the given text.");
         Console.WriteLine("  note <person> --clear  Delete it.");
+        Console.WriteLine("  tier <person> <tier>   Set the relationship (friend, close, best, ...).");
+        Console.WriteLine("  tag <person> <tag>     Add a tag (--remove to drop one).");
+        Console.WriteLine("  locate <person> <place>  Record a location (--kind home|work|other).");
+        Console.WriteLine("  rename <person> <name> Rename, keeping the id.");
         Console.WriteLine();
         Console.WriteLine("Ingest:");
         Console.WriteLine("  ingest parse <path>    Read an export and materialise people.");

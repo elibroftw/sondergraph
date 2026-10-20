@@ -2,8 +2,11 @@
   import type { PersonDetail } from './api'
   import { initials, platformHue, platformLabel } from './format'
   import NoteEditor from './NoteEditor.svelte'
+  import PersonFields from './PersonFields.svelte'
 
-  let { person }: { person: PersonDetail } = $props()
+  // `onchanged` lets the parent re-fetch the detail after an edit, so the panel always shows
+  // what the server actually stored rather than an optimistic local guess.
+  let { person, onchanged = () => {} }: { person: PersonDetail; onchanged?: () => void } = $props()
 </script>
 
 <div class="panel">
@@ -13,11 +16,17 @@
     <div>
       <h2>{person.name}</h2>
 
-      {#if person.tierLabel !== '-'}
-        <span class="tier-pill">{person.tierLabel}</span>
-      {/if}
+
     </div>
   </div>
+
+  <PersonFields
+    personId={person.id}
+    tier={person.tier}
+    tags={person.tags}
+    locations={person.locations}
+    onchange={onchanged}
+  />
 
   {#if person.phones.length > 0}
     <section>
@@ -57,25 +66,6 @@
               </a>
             {:else}
               <span>{account.handle}</span>
-            {/if}
-          </li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
-
-  {#if person.locations.length > 0}
-    <section>
-      <h3>Locations</h3>
-      <ul class="plain">
-        {#each person.locations as location (location.place + location.kind)}
-          <li>
-            {location.place}
-            {#if location.kind !== 'other'}
-              <span class="reason">({location.kind})</span>
-            {/if}
-            {#if location.note}
-              <span class="reason">— {location.note}</span>
             {/if}
           </li>
         {/each}

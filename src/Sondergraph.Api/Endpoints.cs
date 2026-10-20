@@ -74,6 +74,12 @@ public static class SondergraphEndpoints
         api.MapPut("/people/{id}/note", PutNote);
         api.MapDelete("/people/{id}/note", DeleteNote);
         api.MapPost("/people/{id}/note/log", AppendLog);
+
+        // Human-owned fields. PATCH rather than PUT because each endpoint changes one field:
+        // a full replace would let a stale client overwrite an edit made elsewhere.
+        api.MapPatch("/people/{id}/tier", PatchTier);
+        api.MapPatch("/people/{id}/tags", PatchTags);
+        api.MapPatch("/people/{id}/locations", PatchLocations);
     }
 
     /// <summary>
@@ -329,6 +335,113 @@ public static class SondergraphEndpoints
         return appended.IsOk
             ? Results.Ok(new { personId = id, appended = true })
             : Problem(appended.Code, appended.Message, appended.Hint);
+    }
+
+    private sealed record TierRequest(string? Tier);
+    private sealed record TagsRequest(List<string>? Add, List<string>? Remove);
+    private sealed record LocationRequest(string? Place, string? Kind, string? Note, bool Remove);
+
+    private static IResult PatchTier(WorkspaceProvider provider, string id, TierRequest request)
+    {
+        if (!PersonDocument.TryParseTierInput(request.Tier, out var tier))
+        {
+            return Results.Json(
+                new { error = $"Unknown tier '{request.Tier}'.", code = nameof(ErrorCode.Unknown) },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var store = provider.Store();
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var changed = new PersonEditor(store.ValueOrThrow()).SetTier(id, tier);
+
+        return changed.IsOk
+            ? Results.Ok(new { personId = id, tier = PersonDocument.TierToWire(tier) })
+            : Problem(changed.Code, changed.Message, changed.Hint);
+    }
+
+    private static IResult PatchTags(WorkspaceProvider provider, string id, TagsRequest request)
+    {
+        var store = provider.Store();
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var editor = new PersonEditor(store.ValueOrThrow());
+        Result last = Result.Ok();
+
+        foreach (var tag in request.Add ?? [])
+        {
+            last = editor.AddTag(id, tag);
+            if (!last.IsOk) break;
+        }
+
+        if (last.IsOk)
+        {
+            foreach (var tag in request.Remove ?? [])
+            {
+                last = editor.RemoveTag(id, tag);
+                if (!last.IsOk) break;
+            }
+        }
+
+        if (!last.IsOk)
+        {
+            return Problem(last.Code, last.Message, last.Hint);
+        }
+
+        var reloaded = store.ValueOrThrow().Load(id);
+
+        return reloaded.IsOk
+            ? Results.Ok(new { personId = id, tags = reloaded.ValueOrThrow().Tags })
+            : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
+    }
+
+    private static IResult PatchLocations(WorkspaceProvider provider, string id, LocationRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Place))
+        {
+            return Results.Json(
+                new { error = "A location needs a place.", code = nameof(ErrorCode.Unknown) },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var store = provider.Store();
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var editor = new PersonEditor(store.ValueOrThrow());
+        var kind = PersonDocument.ParseLocationKind(request.Kind);
+
+        var changed = request.Remove
+            ? editor.RemoveLocation(id, request.Place)
+            : editor.AddLocation(id, request.Place, kind, request.Note);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        var reloaded = store.ValueOrThrow().Load(id);
+
+        return reloaded.IsOk
+            ? Results.Ok(new
+            {
+                personId = id,
+                locations = reloaded.ValueOrThrow().Locations.Select(l => new
+                {
+                    place = l.Place,
+                    kind = PersonDocument.LocationToWire(l.Kind),
+                    note = l.Note,
+                }),
+            })
+            : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
     }
 
     /// <summary>

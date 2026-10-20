@@ -529,12 +529,16 @@ Local IPC and the handshake contract are in
 
 ## 10. Open questions
 
-1. **Platform priority — still open, and now the main blocker on feature work.** Which
-   platform gets the first parser? Candidates and tradeoffs are in task 0011. Note that
-   *choosing* is cheap; the expensive part is obtaining a real export and reverse-engineering
-   its schema, which is genuinely the work (ADR 0003). The architecture no longer depends on
-   this answer — per-platform parsers mean the decision only affects which parser is written
-   first.
+1. ~~**Platform priority.**~~ **Resolved — and the schema discovery is done.**
+   Three real exports are in hand (Facebook, Instagram, vCard), analysed on 2026-10-19.
+   Findings are in [docs/platforms/](./docs/platforms/). Implementation order: **vCard →
+   Facebook → Instagram** (task 0011), chosen because the vCard holds the only strong
+   identifiers, Facebook is uniform in shape, and Instagram exercises the seam hardest.
+
+   The three sources are complementary and none is complete — Facebook has dated
+   relationships but no contact details, the vCard has phone numbers but no relationships or
+   timestamps, Instagram has handles but unreliable dates. **This is the concrete case for
+   feature #1**: the mass contact view earns its place by joining them.
 2. ~~**Graph index format.**~~ **Resolved** — no graph index at all; built on demand in
    memory (§4.2). SQLite is deferred as a disposable cache, and only if `raw/` scale
    demands it.

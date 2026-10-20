@@ -1,6 +1,6 @@
 ---
 id: "0011"
-title: First real platform parser
+title: First real platform parsers
 status: pending
 priority: high
 labels: [ingest, parsers, schema-discovery]
@@ -10,48 +10,85 @@ created: 2026-10-19
 
 ## Context
 
-ADR 0003 defines the parser seam; task 0004 builds it. This task proves it against a real
-platform export, which is also the **schema-discovery** work: figuring out what a platform
-actually produces, as opposed to what its documentation claims.
+ADR 0003 defines the parser seam; task 0004 builds it. This task proves it against real
+exports, which is also the **schema-discovery** work: figuring out what a platform actually
+produces, as opposed to what its documentation claims.
 
-**This task cannot start without a real export.** It is blocked on the platform decision
-(DESIGN.md §10 Q1) and on obtaining the data.
+**Data is now in hand.** Three real exports were obtained and analysed on 2026-10-19:
+
+- Facebook (`facebook/`) — 353 friends, uniform `{name, timestamp}` shape
+- Instagram (`instagram/`) — ~1,200 relations across **three different record shapes**
+- vCard (`contacts.vcf`) — 235 cards with phone numbers and inline base64 photos
+
+**The schema discovery is done. Findings are in `docs/platforms/`.** What remains is
+implementing parsers against documented shapes.
 
 ## Acceptance criteria
 
-- [ ] Platform chosen and recorded in DESIGN.md §10 Q1.
-- [ ] A real export obtained and placed under `data/raw/<platform>/`.
-- [ ] **Findings documented in `docs/platforms/<platform>.md`**: file layout, identifier
-      scheme, timestamp formats, encoding quirks, what is absent, what is ambiguous.
-      This document is the actual deliverable of the reverse-engineering step.
-- [ ] Fixture subset checked in under `tests/fixtures/<platform>/`, **scrubbed of third-party
-      personal data** (see privacy note below).
-- [ ] Parser implemented per ADR 0003 rules, with `ParserVersion` declared.
-- [ ] Fixture tests pass; malformed-record handling is covered by a test.
-- [ ] Re-parse is idempotent against the real export (not just fixtures).
-- [ ] Round-trip sanity: parsed accounts and posts match a manual spot-check of the export.
+- [x] Platforms identified (DESIGN.md §10 Q1) — Facebook, Instagram, vCard; all three in hand.
+- [x] Real exports obtained and placed outside the repo.
+- [x] **Findings documented** in `docs/platforms/{facebook,instagram,vcard}.md`.
+- [ ] `IPlatformParser` implementations, per ADR 0003 rules, `ParserVersion` declared.
+- [ ] Fixture subsets under `tests/fixtures/<platform>/`, **scrubbed of third-party personal
+      data** (see privacy note below).
+- [ ] Fixture tests pass; malformed-record handling covered by a test.
+- [ ] Re-parse is idempotent against the real exports, not just fixtures.
+
+## Outcome so far: schema discovery
+
+Full detail in `docs/platforms/`. The findings that shape implementation:
+
+**The three sources are complementary, and none is complete.**
+
+| Source | Who | When | How to reach | Handles |
+|---|---|---|---|---|
+| Facebook | 353 names | **Yes** (real, dated 2014–2026) | No | No |
+| Instagram | ~1,200 handles | Yes (but unreliable, see below) | No | **Yes** |
+| vCard | 235 names | **No** | **Phone, email** | No |
+
+This is the strongest argument for feature #1: the mass contact view only becomes useful
+when these are joined.
+
+**Instagram uses three record shapes for one concept.** `following.json` nests under a key;
+`followers_1.json` is a bare array with a `value` field; `close_friends.json` uses
+`label_values` with no top-level handle. One is missing `value`; another has an empty `title`.
+Practical confirmation that the mess belongs in a per-platform parser (ADR 0003).
+
+**Facebook is uniform in shape, ambiguous in semantics.** Every friend record is
+`{name, timestamp}` — no id at all. Identity resolution cannot work by matching; merge
+candidates are the *only* way to resolve Facebook contacts. That is a design input for 0003.
+
+**Facebook timestamps are historically real** (2014–2026, none future-dated). Instagram's are
+not: observed values are at or after export time, so they cannot be trusted as
+relationship-start dates.
+
+**The vCard is the identity anchor.** Phone numbers are the only strong identifiers across
+all three sources, so resolution should be phone → email → name. It is also the only source
+with photos, and those are **inline base64 across folded lines** — 1808 continuation lines in
+a 235-card file, which is the main parsing hazard.
+
+**A vCard parser is general-purpose, not platform-specific.** The format is a standard;
+Google Contacts and Apple Contacts produce it too. Implement it behind `IPlatformParser` for
+seam consistency, but do not treat it as a bespoke one-off.
 
 ## Notes
 
-**Privacy: exports contain other people's data, not just yours.** Contacts' names, handles,
-possibly phone numbers and private messages. Two consequences:
+**Suggested order: vCard first, then Facebook, then Instagram.**
+- vCard is the most valuable (identifiers), most self-contained, and most reusable.
+- Facebook is uniform in shape — a quick win once the pipeline exists.
+- Instagram is three shapes and a filename with an apostrophe; it will exercise the seam
+  hardest, so it is the best test *after* the pipeline is proven simple.
 
-1. `data/` is gitignored — verify before anything lands there.
-2. Fixtures checked into the repo must be **synthetic or scrubbed**. A real export must
-   never be committed, even in a test fixture. Replace handles, names, and message bodies
-   with invented values while preserving structure and quirks.
+**Privacy — the exports contain other people's data.** Real names, phone numbers, and
+photographs of people who did not choose to be in this system.
 
-**Discovery questions to answer from the real data**, because documentation will not:
+1. Exports live **outside the repo**, in `~/OneDrive/Documents/Sonder Graph Data/`.
+2. Fixtures checked into the repo must be **synthetic or scrubbed** — invented names, fake
+   phone numbers in reserved ranges (e.g. `+1 555 0100`–`+1 555 0199`), and generated
+   placeholder images. Preserve structure and quirks; replace every real value.
+3. Never commit an export, not even a "small sample".
 
-- Are timestamps UTC, local, or mixed within one file?
-- Is there a stable per-record id, or must one be derived from content?
-- Are "followers" and "following" in one file or several, and do they share a shape?
-- What encoding is used for non-ASCII text, and is it consistent?
-- Are deleted or edited items represented at all?
-- What is absent that the feature set assumes is present?
-
-The last question is the one most likely to force a design change, so answer it early.
-
-**If the parser cannot supply something a feature needs**, the right response is usually to
-record the gap in the platform document and degrade gracefully — not to widen
-`ParsedRecord` for one platform's sake (ADR 0003, the leaky-abstraction risk).
+**Open question:** Facebook posts and Instagram posts are **absent from these exports** —
+only media files, no text. Feature #2 (Hugo + RSS) cannot be built from what we have. Either
+a new export must be requested with posts included, or feature #2 targets a different source.
+Confirm before starting 0005.

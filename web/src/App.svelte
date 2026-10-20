@@ -2,6 +2,7 @@
   import { api, ApiError, type Health, type PersonDetail, type PersonSummary, type Stats } from './lib/api'
   import { initials, people as peopleLabel, platformHue, platformLabel, resolvePlatform, SOURCES, TIERS } from './lib/format'
   import PersonPanel from './lib/PersonPanel.svelte'
+  import LinkReview from './lib/LinkReview.svelte'
 
   // ---- state -------------------------------------------------------------------------
 
@@ -16,6 +17,7 @@
   let selectedId = $state<string | null>(null)
   let selected = $state<PersonDetail | null>(null)
 
+  let showLinks = $state(false)
   let loading = $state(true)
   let detailLoading = $state(false)
   let error = $state<string | null>(null)
@@ -202,6 +204,10 @@
         </div>
       </div>
 
+      <button class="link-toggle" onclick={() => (showLinks = !showLinks)}>
+        {showLinks ? 'Hide possible links' : 'Review possible links…'}
+      </button>
+
       {#if activeFilters > 0}
         <div class="query-hints" aria-live="polite">
           <span class="muted">{activeFilters} filter(s) active</span>
@@ -212,6 +218,10 @@
 
     {#if error}
       <div class="error" role="alert">{error}</div>
+    {/if}
+
+    {#if showLinks}
+      <LinkReview onlinked={refreshAfterEdit} />
     {/if}
 
     <div class="split">

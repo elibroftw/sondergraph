@@ -72,6 +72,14 @@ export interface NoteResponse {
   body: string
 }
 
+export interface LinkCandidate {
+  left: { id: string; name: string; sources: string[] }
+  right: { id: string; name: string; sources: string[] }
+  score: number
+  evidence: { kind: string; detail: string; confidence: number }[]
+  combined: string
+}
+
 export interface Channel {
   value: string
   label: string
@@ -301,6 +309,13 @@ export const api = {
    * When nobody has set one, the server returns sensible suggestions flagged as such.
    */
   channels: (signal?: AbortSignal) => request<ChannelsResponse>('/api/channels', signal),
+
+  /** Cross-platform pairs worth linking, strongest evidence first. */
+  links: (minScore = 0.5, signal?: AbortSignal) =>
+    request<{ total: number; candidates: LinkCandidate[] }>(
+      `/api/links?minScore=${minScore}`,
+      signal,
+    ),
 
   /** How-you-know-them values in use, derived from the people who have one. */
   connections: (signal?: AbortSignal) =>

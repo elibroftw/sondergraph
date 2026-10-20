@@ -67,6 +67,10 @@ public static class SondergraphEndpoints
         api.MapGet("/people/{id}", GetPerson);
         api.MapGet("/duplicates", Duplicates);
 
+        // Candidate pairs worth linking, with the evidence for each. This is what makes the
+        // merge feature usable: without it a reviewer would have to know both ids already.
+        api.MapGet("/links", ListLinkCandidates);
+
         // Notes. GET returns the main note (empty when none); PUT replaces it; DELETE
         // removes it. A body is used rather than a query parameter so note text of any
         // length and encoding survives, including newlines.
@@ -620,6 +624,43 @@ public static class SondergraphEndpoints
             howWeMet = ConnectionKinds.Normalise(request.HowWeMet) is { Length: > 0 } v ? v : null,
             label = ConnectionKinds.Display(request.HowWeMet),
             didYouMean = suggestion is null ? null : ConnectionKinds.Display(suggestion),
+        });
+    }
+
+    private static IResult ListLinkCandidates(WorkspaceProvider provider, double? minScore)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var loaded = store.ValueOrThrow().ListAll(out _);
+
+        if (!loaded.IsOk)
+        {
+            return Problem(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var candidates = LinkCandidates.Find(loaded.ValueOrThrow(), minScore ?? 0.5);
+
+        return Results.Ok(new
+        {
+            total = candidates.Count,
+            candidates = candidates.Select(c => new
+            {
+                left = new { id = c.Left.Id, name = c.Left.Name, sources = c.Left.Sources },
+                right = new { id = c.Right.Id, name = c.Right.Name, sources = c.Right.Sources },
+                score = Math.Round(c.Score, 2),
+                evidence = c.Evidence.Select(e => new
+                {
+                    kind = e.Kind.ToString(),
+                    detail = e.Detail,
+                    confidence = e.Confidence,
+                }),
+                combined = c.PlatformSummary,
+            }),
         });
     }
 

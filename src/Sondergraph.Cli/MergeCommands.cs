@@ -176,6 +176,60 @@ internal static class MergeCommands
         return ExitCode.Success;
     }
 
+    internal static int Links(string[] args)
+    {
+        // sg links [--min-score 0.6] [--limit 20]
+        var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
+        var limit = int.TryParse(ValueAfter(args, "--limit"), out var l) ? l : 20;
+        var minScore = double.TryParse(ValueAfter(args, "--min-score"), out var m) ? m : 0.5;
+
+        var located = Workspace.Locate(workspaceArg);
+
+        if (!located.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(located);
+            return ExitCode.MapExitCode(located.Code);
+        }
+
+        var store = new PersonStore(located.ValueOrThrow());
+        var loaded = store.ListAll(out _);
+
+        if (!loaded.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(loaded);
+            return ExitCode.MapExitCode(loaded.Code);
+        }
+
+        var candidates = LinkCandidates.Find(loaded.ValueOrThrow(), minScore);
+
+        if (candidates.Count == 0)
+        {
+            Console.WriteLine("No cross-platform candidates found.");
+            return ExitCode.Success;
+        }
+
+        Console.WriteLine($"{candidates.Count} possible link(s); showing the top {Math.Min(limit, candidates.Count)}:");
+        Console.WriteLine();
+
+        foreach (var candidate in candidates.Take(limit))
+        {
+            // "Left ⟷ Right" on one line, evidence beneath, then the graft command so the
+            // next step needs no looking up.
+            Console.WriteLine(
+                $"  {candidate.Left.Name} ({string.Join(",", candidate.Left.Sources)})"
+                + $"  <->  {candidate.Right.Name} ({string.Join(",", candidate.Right.Sources)})");
+
+            var reasons = string.Join("; ", candidate.Evidence.Select(e => e.Detail));
+            var adds = $"  combines: {candidate.PlatformSummary}";
+
+            Console.WriteLine($"      {reasons}{adds}");
+            Console.WriteLine($"      sg graft {candidate.Right.Id} {candidate.Left.Id}");
+            Console.WriteLine();
+        }
+
+        return ExitCode.Success;
+    }
+
     internal static int ListMerges(string[] args)
     {
         var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");

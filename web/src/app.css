@@ -848,3 +848,96 @@ ul.plain a:hover {
   margin: 6px 0 0;
   font-size: 12px;
 }
+
+/* ── Link review ───────────────────────────────────────────────────────────────── */
+
+.link-toggle {
+  align-self: flex-start;
+  padding: 5px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.link-toggle:hover {
+  background: var(--hover);
+  border-style: solid;
+}
+
+.links {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.links h3 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.link-list li {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.link-pair {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.link-name {
+  font-weight: 550;
+  font-size: 14px;
+}
+
+.link-sources {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.link-evidence {
+  margin: 6px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.link-list li button {
+  padding: 5px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.link-list li button:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.link-list li button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

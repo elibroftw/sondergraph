@@ -39,6 +39,7 @@ public static class Program
             "graft" or "merge" => MergeCommands.Graft(args),
             "ungraft" or "unmerge" => MergeCommands.Ungraft(args),
             "merges" => MergeCommands.ListMerges(args),
+            "links" => MergeCommands.Links(args),
             "workspace" or "ws" => DispatchWorkspace(args),
             var unknown => Unknown(unknown),
         };
@@ -122,6 +123,7 @@ public static class Program
         Console.WriteLine("  graft <absorb> <keep>  Merge two contacts into one (the second keeps its id).");
         Console.WriteLine("  ungraft <merge-id>     Reverse a merge.");
         Console.WriteLine("  merges                 List recorded merges.");
+        Console.WriteLine("  links                  Find cross-platform pairs worth merging.");
         Console.WriteLine();
         Console.WriteLine("Ingest:");
         Console.WriteLine("  ingest parse <path>    Read an export and materialise people.");

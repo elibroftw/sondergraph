@@ -1,7 +1,17 @@
 using Sondergraph.Api;
 using Sondergraph.Core;
 
-var builder = WebApplication.CreateBuilder(args);
+// Resolve content relative to THIS assembly, not the current working directory.
+//
+// When the API runs as a desktop sidecar it is started by the Tauri shell, whose working
+// directory is wherever the shell happens to be. ASP.NET's default content root is the CWD,
+// so it would look for wwwroot next to the shell - find nothing - and serve 404 for the UI
+// while reporting a perfectly healthy server.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory,
+});
 
 // Bind loopback on an ephemeral port by default. The handshake design in
 // docs/architecture-precedents.md §3 depends on a dynamic port, and the desktop shell
@@ -61,6 +71,13 @@ app.MapFallback(async context =>
         + "Build it with: pnpm --dir web build\n"
         + $"API is at http://127.0.0.1:{context.Connection.LocalPort}/api/health\n");
 });
+
+// Report the chosen port to a launcher that spawned us (the desktop shell). Emitted only
+// when --handshake is passed, so running the server by hand prints nothing extra.
+if (Handshake.IsRequested(args))
+{
+    Handshake.Attach(app);
+}
 
 app.Run();
 

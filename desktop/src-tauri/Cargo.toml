@@ -1,0 +1,28 @@
+[package]
+name = "sondergraph-desktop"
+version = "0.0.1"
+description = "sondergraph desktop shell"
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Unix only. On Windows the job-object approach covered by Tauri's own process handling is
+# sufficient, and this crate has no Windows backend.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.release]
+# Smaller binary and faster startup; the sidecar is the large artifact, not this shell.
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

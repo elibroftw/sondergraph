@@ -25,25 +25,32 @@ one platform, three shapes, and a per-platform parser is where that mess belongs
 
 ## 2. Layout
 
+**Counts are from the original zip** (12 entries), which is authoritative — see §9 on why the
+extracted directory must not be trusted for counts.
+
 ```
 instagram/
 ├── connections/
 │   └── followers_and_following/
-│       ├── following.json                    # 666 accounts (relationships_following)
-│       ├── followers_1.json                  # 526 accounts
-│       ├── close_friends.json                # 11 accounts
-│       ├── blocked_profiles.json
-│       ├── restricted_profiles.json
-│       ├── hide_story_from.json
-│       ├── pending_follow_requests.json
-│       ├── recent_follow_requests.json
-│       ├── follow_requests_you've_received.json
-│       ├── recently_unfollowed_profiles.json
-│       └── removed_suggestions.json
+│       ├── following.json                     #  666  (nested: relationships_following)
+│       ├── followers_1.json                   #  526
+│       ├── blocked_profiles.json              #  566
+│       ├── removed_suggestions.json           #  149
+│       ├── recent_follow_requests.json        #   26
+│       ├── pending_follow_requests.json       #   21
+│       ├── close_friends.json                 #   11
+│       ├── follow_requests_you've_received.json #  4
+│       ├── recently_unfollowed_profiles.json  #    4
+│       ├── hide_story_from.json               #    3
+│       └── restricted_profiles.json           #    0  (present, empty)
 └── preferences/
     └── your_topics/
-        └── your_ads_see_more/see_less_topics.json
+        └── your_ads_see_more/see_less_topics.json   # 6 (not contacts)
 ```
+
+**1976 relation records total.** Note `blocked_profiles.json` (566) is the third-largest file
+and is *not* a connection — those are people the user blocked. Ingesting them as contacts
+would be actively wrong; they belong in a separate relation kind or are skipped (§3e).
 
 **Only `connections/` is currently useful.** There is no posts, messages, or media
 directory in this export — see §6.
@@ -228,3 +235,37 @@ variations within one platform, not separate platforms.
 
 **`ParserVersion` starts at 1.** Treat the shape-dispatch in step 2 as the most likely thing
 to need revision.
+
+---
+
+## 9. Read the zip, not the extraction
+
+Same rule as Facebook (`facebook.md` §11): **`IAcquirer` must read the archive directly**
+rather than an extracted directory.
+
+For Instagram the two happened to agree in this case — 12 zip entries, and the extracted tree
+contains only JSON plus the leftover zip — but the principle holds and the failure mode is
+severe. On Facebook, reading the extracted tree produced understated counts throughout and
+**silently hid a 179-record contacts file**.
+
+An extraction is a derived artifact. The zip is what the platform produced, carries the
+platform's own structure, and is reproducible. Extraction can be partial, interrupted, or
+overwritten by a second export of the same account.
+
+---
+
+## 10. A note on `removed_suggestions.json` and `blocked_profiles.json`
+
+Both are large (149 and 566) and both are **not connections**:
+
+- `blocked_profiles.json` — people the user blocked. Ingesting them as contacts would be
+  actively wrong.
+- `removed_suggestions.json` — accounts the user dismissed from suggestions. They are
+  strangers; including them would inflate the contact graph (§3d, same reasoning as
+  Facebook's `people_you_may_know`).
+
+The parser should emit neither as contacts. If a future feature wants "accounts I've
+interacted with negatively", that is a distinct relation kind, not an account.
+
+**This is the largest single source of inflation risk in the export**: 715 records out of
+1976 (36%) are non-connections.

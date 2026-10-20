@@ -530,15 +530,26 @@ Local IPC and the handshake contract are in
 ## 10. Open questions
 
 1. ~~**Platform priority.**~~ **Resolved — and the schema discovery is done.**
-   Three real exports are in hand (Facebook, Instagram, vCard), analysed on 2026-10-19.
-   Findings are in [docs/platforms/](./docs/platforms/). Implementation order: **vCard →
-   Facebook → Instagram** (task 0011), chosen because the vCard holds the only strong
-   identifiers, Facebook is uniform in shape, and Instagram exercises the seam hardest.
+   **Five sources** are in hand and analysed (2026-10-19). Findings are in
+   [docs/platforms/](./docs/platforms/).
 
-   The three sources are complementary and none is complete — Facebook has dated
-   relationships but no contact details, the vCard has phone numbers but no relationships or
-   timestamps, Instagram has handles but unreliable dates. **This is the concrete case for
-   feature #1**: the mass contact view earns its place by joining them.
+   | Source | Format | Contacts | Dates | Phones |
+   |---|---|---|---|---|
+   | vCard (standalone) | vCard 2.1 | 235 | no | 245 |
+   | Google Takeout | vCard 3.0 | 432 | no | 243 |
+   | Facebook | JSON | 353 + 179 | yes | 179 |
+   | LinkedIn | CSV | 683 | yes | no |
+   | Instagram | JSON | 1,976 rel. | unreliable | no |
+
+   **Four formats and four date representations.** No source is complete: Facebook and
+   LinkedIn know *when*, the two vCards know *how to reach people*, Instagram alone has
+   social handles. **This is the concrete case for feature #1** — the mass contact view earns
+   its place by joining them, and nothing else in the system does that.
+
+   Implementation order (task 0011): **vCard → LinkedIn → Facebook → Instagram.**
+
+   Three further sources are **deferred pending feature #3**: Takeout Mail (726 MB), LinkedIn
+   messages, and post content. See [docs/platforms/README.md](./docs/platforms/README.md).
 2. ~~**Graph index format.**~~ **Resolved** — no graph index at all; built on demand in
    memory (§4.2). SQLite is deferred as a disposable cache, and only if `raw/` scale
    demands it.

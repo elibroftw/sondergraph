@@ -25,9 +25,10 @@ implementing parsers against documented shapes.
 
 ## Acceptance criteria
 
-- [x] Platforms identified (DESIGN.md §10 Q1) — Facebook, Instagram, vCard; all three in hand.
+- [x] Platforms identified (DESIGN.md §10 Q1) — **five sources**, all in hand.
 - [x] Real exports obtained and placed outside the repo.
-- [x] **Findings documented** in `docs/platforms/{facebook,instagram,vcard}.md`.
+- [x] **Findings documented** in `docs/platforms/` — facebook, instagram, vcard,
+      google-takeout, linkedin.
 - [ ] `IPlatformParser` implementations, per ADR 0003 rules, `ParserVersion` declared.
 - [ ] Fixture subsets under `tests/fixtures/<platform>/`, **scrubbed of third-party personal
       data** (see privacy note below).
@@ -36,48 +37,54 @@ implementing parsers against documented shapes.
 
 ## Outcome so far: schema discovery
 
-Full detail in `docs/platforms/`. The findings that shape implementation:
+Full detail in `docs/platforms/`. Five sources, **four formats**, **four date representations**.
 
-**The three sources are complementary, and none is complete.**
+| Source | Format | Contacts | Dates | Phones | Photos |
+|---|---|---|---|---|---|
+| vCard (standalone) | vCard **2.1** | 235 | no | **245** | inline base64 |
+| Google Takeout | vCard **3.0** | **432** | no | **243** | separate `.jpg` |
+| Facebook | JSON | 353 + **179** | **yes** | **179** | 6 |
+| LinkedIn | **CSV** | **683** | **yes** | no | no |
+| Instagram | JSON | 1,976 rel. | unreliable | no | no |
 
-| Source | Who | When | How to reach | Handles |
-|---|---|---|---|---|
-| Facebook | 353 names | **Yes** (real, dated 2014–2026) | No | No |
-| Instagram | ~1,200 handles | Yes (but unreliable, see below) | No | **Yes** |
-| vCard | 235 names | **No** | **Phone, email** | No |
+**No single source is complete.** Facebook and LinkedIn know *when*; the two vCards know
+*how to reach people*; only Instagram has social handles. Feature #1 earns its place by
+joining them.
 
-This is the strongest argument for feature #1: the mass contact view only becomes useful
-when these are joined.
+### Findings that shape implementation
 
-**Instagram uses three record shapes for one concept.** `following.json` nests under a key;
-`followers_1.json` is a bare array with a `value` field; `close_friends.json` uses
-`label_values` with no top-level handle. One is missing `value`; another has an empty `title`.
-Practical confirmation that the mess belongs in a per-platform parser (ADR 0003).
+**Parse the zip, not an extracted directory.** Reading Facebook's extracted tree instead of
+its zip silently hid `your_imported_contacts.json` — 179 contacts with phone numbers. See
+`docs/platforms/README.md`.
 
-**Facebook is uniform in shape, ambiguous in semantics.** Every friend record is
-`{name, timestamp}` — no id at all. Identity resolution cannot work by matching; merge
-candidates are the *only* way to resolve Facebook contacts. That is a design input for 0003.
+**vCard exists in two incompatible versions in this dataset.** 2.1 (LF, `TEL;CELL`, inline
+base64 photos) and 3.0 (CRLF, `TEL;TYPE=CELL`, separate `.jpg` files). Both parse without
+error under the wrong assumptions and produce wrong values. The parser must be
+version-aware — this is the most likely silent bug in the whole effort.
 
-**Facebook timestamps are historically real** (2014–2026, none future-dated). Instagram's are
-not: observed values are at or after export time, so they cannot be trusted as
-relationship-start dates.
+**Four different date representations.** Unix epoch integer (Facebook), unreliable epoch
+(Instagram), `dd MMM yyyy` string (LinkedIn), none (both vCards). LinkedIn's is the only
+string date and needs an invariant culture.
 
-**The vCard is the identity anchor.** Phone numbers are the only strong identifiers across
-all three sources, so resolution should be phone → email → name. It is also the only source
-with photos, and those are **inline base64 across folded lines** — 1808 continuation lines in
-a 235-card file, which is the main parsing hazard.
+**Instagram uses three record shapes for one concept**, and 36% of its records (blocked
+profiles, removed suggestions) are **not connections** — ingesting them as contacts would
+inflate the graph by a third.
 
-**A vCard parser is general-purpose, not platform-specific.** The format is a standard;
-Google Contacts and Apple Contacts produce it too. Implement it behind `IPlatformParser` for
-seam consistency, but do not treat it as a bespoke one-off.
+**Facebook friend records have no identifier at all** (`{name, timestamp}`), so identity
+resolution cannot match — merge candidates are the only path.
+
+**Three sources are deferred**, all pending feature #3: Takeout Mail (726 MB of mbox),
+LinkedIn messages, and post content. The first is two orders of magnitude larger than
+everything else combined.
+
+### Recommended implementation order
+
+1. **vCard** — serves both `contacts.vcf` and Takeout; the identity anchor (488 phones total).
+2. **LinkedIn** — 683 dated connections with stable profile URLs; simplest format.
+3. **Facebook** — start with `your_imported_contacts.json` (179 phones), then friends.
+4. **Instagram** — hardest; three shapes and a filename with an apostrophe.
 
 ## Notes
-
-**Suggested order: vCard first, then Facebook, then Instagram.**
-- vCard is the most valuable (identifiers), most self-contained, and most reusable.
-- Facebook is uniform in shape — a quick win once the pipeline exists.
-- Instagram is three shapes and a filename with an apostrophe; it will exercise the seam
-  hardest, so it is the best test *after* the pipeline is proven simple.
 
 **Privacy — the exports contain other people's data.** Real names, phone numbers, and
 photographs of people who did not choose to be in this system.

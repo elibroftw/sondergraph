@@ -38,9 +38,26 @@ lines make this a genuinely fiddly format to parse correctly (§4).
 | Continuation lines | **1808** |
 | Unique names | 230 — **2 duplicated display names** |
 
-**vCard 2.1 is a legacy format.** It differs from 3.0/4.0 in ways that matter:
-`ENCODING=BASE64` instead of a data URI, `TEL;CELL` instead of `TEL;TYPE=CELL`, and no
-guaranteed `FN`. Assume 2.1 semantics.
+**vCard 2.1 is a legacy format**, but **do not assume the parser only sees 2.1.**
+
+A Google Takeout export in the same dataset contains **vCard 3.0** contacts, and the two
+versions differ in syntax that a parser touches directly
+([google-takeout.md](google-takeout.md) §3):
+
+| | This file (2.1) | Takeout (3.0) |
+|---|---|---|
+| Line endings | LF | **CRLF** |
+| `TEL` params | `TEL;CELL` | **`TEL;TYPE=CELL`** |
+| `PHOTO` | inline base64 | **separate `.jpg` file** |
+| `CATEGORIES` | absent | present |
+
+**One parser, version-aware.** A 3.0 file read with 2.1 assumptions mis-parses every `TEL`
+parameter — `TYPE=CELL` becomes a parameter named `TYPE` — and a 2.1 file read with 3.0
+assumptions fails on photo decoding. Detect from `VERSION:` and branch, or normalise both to
+a common shape immediately after unfolding.
+
+This is the single most likely source of a silent bug in the vCard parser, because both files
+parse *without error* under the wrong assumptions and simply produce wrong values.
 
 ---
 

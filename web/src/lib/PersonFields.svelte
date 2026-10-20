@@ -179,12 +179,12 @@
 </section>
 
 <section>
-  <h3>Preferred contact</h3>
+  <h3>Preferred method of comm.</h3>
 
   <div class="inline-add">
     <select
       value={preferred ?? ''}
-      aria-label="Preferred contact channel"
+      aria-label="Preferred method of comm."
       onchange={(e) => setPreferred((e.target as HTMLSelectElement).value)}
       disabled={busy}
     >

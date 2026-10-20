@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PersonDetail } from './api'
   import { initials, platformHue, platformLabel } from './format'
+  import NoteEditor from './NoteEditor.svelte'
 
   let { person }: { person: PersonDetail } = $props()
 </script>
@@ -93,14 +94,7 @@
     </section>
   {/if}
 
-  {#if person.notes.length > 0}
-    <section>
-      <h3>Notes</h3>
-      {#each person.notes as note (note.fileName)}
-        <div class="note">{note.body}</div>
-      {/each}
-    </section>
-  {/if}
+  <NoteEditor personId={person.id} personName={person.name} />
 
   {#if person.sources.length > 1}
     <section>

@@ -66,6 +66,14 @@ public static class SondergraphEndpoints
         api.MapGet("/people", ListPeople);
         api.MapGet("/people/{id}", GetPerson);
         api.MapGet("/duplicates", Duplicates);
+
+        // Notes. GET returns the main note (empty when none); PUT replaces it; DELETE
+        // removes it. A body is used rather than a query parameter so note text of any
+        // length and encoding survives, including newlines.
+        api.MapGet("/people/{id}/note", GetNote);
+        api.MapPut("/people/{id}/note", PutNote);
+        api.MapDelete("/people/{id}/note", DeleteNote);
+        api.MapPost("/people/{id}/note/log", AppendLog);
     }
 
     /// <summary>
@@ -253,6 +261,74 @@ public static class SondergraphEndpoints
         }
 
         return Results.Ok(ToDetail(loaded.ValueOrThrow()));
+    }
+
+    /// <summary>The request body for writing a note.</summary>
+    private sealed record NoteBody(string? Body);
+
+    private static IResult GetNote(WorkspaceProvider provider, string id)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var note = new NoteService(store.ValueOrThrow()).GetMainNote(id);
+
+        return note.IsOk
+            ? Results.Ok(new { personId = id, body = note.ValueOrThrow() })
+            : Problem(note.Code, note.Message, note.Hint);
+    }
+
+    private static IResult PutNote(WorkspaceProvider provider, string id, NoteBody request)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var saved = new NoteService(store.ValueOrThrow()).SaveMainNote(id, request.Body ?? string.Empty);
+
+        return saved.IsOk
+            ? Results.Ok(new { personId = id, saved = true })
+            : Problem(saved.Code, saved.Message, saved.Hint);
+    }
+
+    private static IResult DeleteNote(WorkspaceProvider provider, string id)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var deleted = new NoteService(store.ValueOrThrow()).DeleteMainNote(id);
+
+        return deleted.IsOk
+            ? Results.Ok(new { personId = id, deleted = true })
+            : Problem(deleted.Code, deleted.Message, deleted.Hint);
+    }
+
+    /// <summary>Appends a timestamped entry to the person's note.</summary>
+    private static IResult AppendLog(WorkspaceProvider provider, string id, NoteBody request)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var appended = new NoteService(store.ValueOrThrow()).AppendLogEntry(id, request.Body ?? string.Empty);
+
+        return appended.IsOk
+            ? Results.Ok(new { personId = id, appended = true })
+            : Problem(appended.Code, appended.Message, appended.Hint);
     }
 
     /// <summary>

@@ -417,3 +417,157 @@ ul.plain a:hover {
   padding: 10px;
   margin-top: 4px;
 }
+/* ── Notes ─────────────────────────────────────────────────────────────────────── */
+
+.notes textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  /* Explicit colours: without them the textarea inherits page colours and the typed text
+     becomes dark-on-dark in the dark theme. */
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 140px;
+}
+
+.notes textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.notes .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.notes button {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.notes button:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.notes button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.notes button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 550;
+}
+
+.notes .hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.notes .state {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+.notes .state.unsaved {
+  color: var(--danger);
+}
+
+.notes .note-error {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* Rendered markdown: tighter than document styles, because it sits in a narrow panel. */
+.notes .rendered {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.notes .rendered p {
+  margin: 0 0 8px;
+}
+
+.notes .rendered p:last-child {
+  margin-bottom: 0;
+}
+
+.notes .rendered h3,
+.notes .rendered h4,
+.notes .rendered h5,
+.notes .rendered h6 {
+  margin: 12px 0 6px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.notes .rendered ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.notes .rendered code {
+  background: var(--hover);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.notes .rendered a {
+  color: var(--accent);
+}
+
+.notes .entry {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.notes .entry input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.notes .entry input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}

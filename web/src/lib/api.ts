@@ -63,6 +63,11 @@ export interface Health {
   workspace: WorkspaceState
 }
 
+export interface NoteResponse {
+  personId: string
+  body: string
+}
+
 export interface DuplicateGroup {
   name: string
   people: PersonSummary[]
@@ -137,4 +142,44 @@ export const api = {
 
   duplicates: (signal?: AbortSignal) =>
     request<{ groups: number; duplicates: DuplicateGroup[] }>('/api/duplicates', signal),
+
+  getNote: (id: string, signal?: AbortSignal) =>
+    request<NoteResponse>(`/api/people/${encodeURIComponent(id)}/note`, signal),
+
+  /** Saves the note. An empty body deletes it, matching the CLI and the server. */
+  saveNote: async (id: string, body: string): Promise<void> => {
+    const response = await fetch(`/api/people/${encodeURIComponent(id)}/note`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    })
+
+    if (!response.ok) {
+      let detail: { error?: string; hint?: string; code?: string } = {}
+      try {
+        detail = await response.json()
+      } catch {
+        // Non-JSON error; fall through to the status text.
+      }
+      throw new ApiError(
+        detail.error ?? response.statusText,
+        detail.code ?? 'Unknown',
+        detail.hint ?? null,
+        response.status,
+      )
+    }
+  },
+
+  /** Appends a timestamped entry without replacing anything already written. */
+  appendNote: async (id: string, body: string): Promise<void> => {
+    const response = await fetch(`/api/people/${encodeURIComponent(id)}/note/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    })
+
+    if (!response.ok) {
+      throw new ApiError(response.statusText || 'Could not add the entry', 'Unknown', null, response.status)
+    }
+  },
 }

@@ -29,6 +29,7 @@ public static class Program
             "list" or "ls" => PersonCommands.List(args),
             "show" => PersonCommands.Show(args),
             "stats" => PersonCommands.Stats(args),
+            "note" or "notes" => NoteCommands.Run(args),
             "workspace" or "ws" => DispatchWorkspace(args),
             var unknown => Unknown(unknown),
         };
@@ -97,6 +98,10 @@ public static class Program
         Console.WriteLine("  list [path]            List every person, sorted by name.");
         Console.WriteLine("  show <id|name>         Show one person in detail.");
         Console.WriteLine("  stats                  Summarise the contact graph.");
+        Console.WriteLine("  note <person>          Print a contact's note.");
+        Console.WriteLine("  note <person> --edit   Edit it in $EDITOR.");
+        Console.WriteLine("  note <person> --set    Replace it with the given text.");
+        Console.WriteLine("  note <person> --clear  Delete it.");
         Console.WriteLine();
         Console.WriteLine("Ingest:");
         Console.WriteLine("  ingest parse <path>    Read an export and materialise people.");

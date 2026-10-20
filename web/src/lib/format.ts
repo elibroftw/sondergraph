@@ -15,12 +15,34 @@ export function platformLabel(platform: string): string {
 }
 
 /**
- * A deterministic colour for a platform, derived from its name.
+ * Hue for a platform chip.
  *
- * Deterministic rather than a lookup table so a new platform gets a sensible colour without
- * anyone editing this file — and the same platform is always the same colour across views.
+ * Known platforms get a hue close to their brand colour, clamped into the cyan-to-violet band
+ * the rest of the palette lives in, so the UI stays coherent instead of turning into a
+ * rainbow. Unknown platforms fall back to a hash, which keeps them distinguishable.
+ *
+ * The first version hashed every name, which gave LinkedIn a red chip and Instagram a muddy
+ * purple - recognisable as neither the brand nor the theme.
  */
+const PLATFORM_HUES: Record<string, number> = {
+  instagram: 320,
+  facebook: 220,
+  linkedin: 205,
+  vcard: 168,
+  contacts: 168,
+  signal: 190,
+  mastodon: 262,
+  bluesky: 200,
+  telegram: 200,
+}
+
 export function platformHue(platform: string): number {
+  const known = PLATFORM_HUES[platform.toLowerCase()]
+
+  if (known !== undefined) {
+    return known
+  }
+
   let hash = 0
 
   for (let i = 0; i < platform.length; i++) {

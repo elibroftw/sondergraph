@@ -1,67 +1,109 @@
 /* ── Theme ─────────────────────────────────────────────────────────────────────
-   Light is the base; dark is applied when the operating system asks for it. There is no
-   in-app toggle on purpose: the app follows the system preference, so it matches every
-   other window on the desktop without the user configuring anything twice.
+   Cyberpunk: deep blue-black base, electric cyan primary, magenta secondary accent,
+   and a violet third. Light mode keeps the same hues but lifts them so the palette
+   reads as "neon signage at dusk" rather than washing out.
 
-   `color-scheme` is what makes the browser style its own widgets — scrollbars, the native
-   search-field clear button, focus rings, and the caret — to match. Without it the page
-   paints dark while its scrollbars and form controls stay light, which looks broken. */
+   Typography: Montserrat for body (geometric, slightly technical without being
+   severe) and Manrope for headings and labels — its narrower forms read well in the
+   small-caps section labels. Both self-hosted via fontsource, never a CDN: this is a
+   local app and must work offline.
+
+   `color-scheme` is what makes the browser style its own widgets — scrollbars, the
+   native search clear button, focus rings, the caret — to match. Without it the page
+   paints dark while its scrollbars stay light, which looks broken. */
 
 :root {
   color-scheme: light dark;
 
-  --bg: #fafaf7;
+  /* Base surfaces: very slightly blue-tinted rather than neutral grey, which is what
+     makes a dark UI read as "instrument panel" instead of "dark theme". */
+  --bg: #eef2f8;
+  --bg-deep: #dde5f0;
   --panel: #ffffff;
-  --text: #1a1a17;
-  --muted: #6b6870;
-  --border: #e3e1dc;
-  --hover: #f0efea;
-  --accent: #2c6e49;
-  --accent-soft: rgba(44, 110, 73, 0.08);
-  --accent-contrast: #ffffff;
-  --danger: #b3261e;
-  --danger-soft: rgba(179, 38, 30, 0.08);
-  --danger-border: rgba(179, 38, 30, 0.3);
-  --chip-bg-mix: 32%;
-  --chip-text-mix: 42%;
-  --chip-border-mix: 74%;
-  --shadow-panel: none;
+  --panel-raised: #f7fafd;
 
-  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --text: #101726;
+  --muted: #5a6b85;
+  --border: #c9d5e6;
+  --hover: #e6ebf4;
+
+  /* Electric cyan is the primary; magenta is the counter-accent, used sparingly so it
+     stays an accent rather than competing. */
+  --accent: #0891b2;
+  --accent-bright: #06b6d4;
+  --accent-soft: rgba(8, 145, 178, 0.1);
+  --accent-contrast: #ffffff;
+
+  --magenta: #c026d3;
+  --violet: #7c3aed;
+
+  --danger: #be123c;
+  --danger-soft: rgba(190, 18, 60, 0.08);
+  --danger-border: rgba(190, 18, 60, 0.3);
+
+  /* Light mode chips: a pale tinted fill with dark text. The first attempt used a
+     saturated fill with dark text, which rendered as an unreadable dark-on-dark blob. */
+  --chip-bg-mix: 90%;
+  --chip-text-mix: 28%;
+  --chip-border-mix: 70%;
+  --chip-saturate: 70%;
+
+  --glow-soft: 0 0 0 rgba(6, 182, 212, 0);
+  --glow: 0 0 18px rgba(6, 182, 212, 0.22);
+  --glow-strong: 0 0 28px rgba(6, 182, 212, 0.4);
+
+  --shadow-panel: 0 1px 2px rgba(16, 23, 38, 0.06);
+
+  --font-body: 'Montserrat Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Manrope Variable', 'Montserrat Variable', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'JetBrains Mono', Consolas, monospace;
+
+  font-family: var(--font-body);
+  /* Variable fonts: slightly tighter tracking reads as "designed" rather than default. */
+  letter-spacing: -0.006em;
   color: var(--text);
   background: var(--bg);
   font-size: 15px;
-  line-height: 1.45;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #16181a;
-    --panel: #1e2124;
-    --text: #e8e6e1;
-    --muted: #9d9a94;
-    --border: #2f3438;
-    --hover: #262a2e;
+    --bg: #05070d;
+    --bg-deep: #020409;
+    --panel: #0b111c;
+    --panel-raised: #101827;
 
-    /* The light accent (#2c6e49) is too dark to read on a dark surface, so the dark
-       theme lifts it. The hue is kept so the identity stays recognisable. */
-    --accent: #67b98a;
-    --accent-soft: rgba(103, 185, 138, 0.12);
-    /* Text sitting ON the accent fill. In light mode the accent is dark and wants white
-       text; in dark mode it is light and wants dark text, or the button is unreadable. */
-    --accent-contrast: #10201a;
+    --text: #e4ecff;
+    --muted: #7d8bab;
+    --border: #1c2740;
+    --hover: #131d30;
 
-    --danger: #f2857c;
-    --danger-soft: rgba(242, 133, 124, 0.1);
-    --danger-border: rgba(242, 133, 124, 0.35);
+    --accent: #22d3ee;
+    --accent-bright: #67e8f9;
+    --accent-soft: rgba(34, 211, 238, 0.1);
+    /* Text ON the accent fill. In dark mode the accent is bright, so the label must be
+       near-black or it is unreadable. */
+    --accent-contrast: #04121a;
 
-    /* Chips are tinted per-platform from a hue. On a dark surface they need a darker,
-       more saturated fill and lighter text to stay legible and distinct. */
-    --chip-bg-mix: 22%;
-    --chip-text-mix: 78%;
-    --chip-border-mix: 34%;
-    --shadow-panel: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --magenta: #e879f9;
+    --violet: #a78bfa;
+
+    --danger: #fb7185;
+    --danger-soft: rgba(251, 113, 133, 0.1);
+    --danger-border: rgba(251, 113, 133, 0.35);
+
+    --chip-bg-mix: 20%;
+    --chip-text-mix: 76%;
+    --chip-border-mix: 38%;
+    --chip-saturate: 45%;
+
+    --glow-soft: 0 0 8px rgba(34, 211, 238, 0.12);
+    --glow: 0 0 20px rgba(34, 211, 238, 0.25);
+    --glow-strong: 0 0 34px rgba(34, 211, 238, 0.45);
+
+    --shadow-panel: 0 0 0 1px rgba(34, 211, 238, 0.04), 0 8px 32px rgba(0, 0, 0, 0.6);
   }
 }
 
@@ -118,12 +160,6 @@ header {
 .stats dt {
   color: var(--muted);
   font-size: 12px;
-}
-
-.stats dd {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 650;
 }
 
 /* ---- toolbar ------------------------------------------------------------------ */
@@ -278,9 +314,9 @@ header {
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 11px;
-  color: hsl(var(--hue) 45% var(--chip-text-mix));
-  background: hsl(var(--hue) 45% var(--chip-bg-mix));
-  border: 1px solid hsl(var(--hue) 35% var(--chip-border-mix));
+  color: hsl(var(--hue) var(--chip-saturate) var(--chip-text-mix));
+  background: hsl(var(--hue) var(--chip-saturate) var(--chip-bg-mix));
+  border: 1px solid hsl(var(--hue) var(--chip-saturate) var(--chip-border-mix));
   white-space: nowrap;
 }
 
@@ -1038,4 +1074,217 @@ ul.plain a:hover {
   font-size: 13px;
   /* Must not eat clicks meant for the frame once it loads. */
   pointer-events: none;
+}
+
+/* ── High-tech treatment ─────────────────────────────────────────────────────────
+   The effects are deliberately few and shared. A cyberpunk interface goes wrong when
+   every element glows: the result is a screensaver, not a tool. Hover earns a subtle
+   glow, the active element earns a brighter one, and everything else stays quiet. */
+
+body {
+  margin: 0;
+  /* A faint grid, like graph paper under the interface. Very low contrast so it reads as
+     texture rather than decoration, and it disappears entirely against the panels. */
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  background-attachment: fixed;
+  min-height: 100vh;
+}
+
+/* Headings and section labels use Manrope: narrower forms hold up at small sizes. */
+h1, h2, h3, .brand h1, .list .name, .panel .head h2, .merge-name, .link-name {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Section labels get the tech treatment: uppercase, spaced, accent-tinted. */
+.panel h3,
+.notes h3,
+.socials h3,
+.links h3,
+.merge h3 {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+/* The brand line: the one place typography is allowed to be loud. */
+.brand h1 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 27px;
+  letter-spacing: -0.04em;
+  background: linear-gradient(100deg, var(--accent-bright), var(--magenta) 130%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tagline {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- the signature hover: italic + glow --------------------------------------
+   Requested specifically: italicising on hover. Applied to the interactive text rows
+   rather than to every button, because a button that skews under the cursor is jarring
+   when you are aiming at it. Rows are read, so a small typographic shift is welcome. */
+
+.list li button .name,
+.link-name,
+.merge-results .merge-name {
+  transition: transform 140ms ease, font-style 140ms ease, color 140ms ease;
+}
+
+.list li button:hover .name,
+.merge-results li button:hover .merge-name {
+  font-style: italic;
+  color: var(--accent-bright);
+  /* A hair of translation: reads as the row leaning toward you. */
+  transform: translateX(2px);
+}
+
+.list li button:hover {
+  background: var(--hover);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: var(--glow);
+}
+
+.list li button.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: var(--glow);
+}
+
+/* ---- panels ----------------------------------------------------------------- */
+
+.detail,
+.links {
+  box-shadow: var(--shadow-panel);
+  /* A hairline accent along the top edge: the single most effective way to make a card
+     feel engineered rather than floated. */
+  border-top-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+
+/* ---- controls --------------------------------------------------------------- */
+
+input,
+select,
+textarea,
+button {
+  font-family: var(--font-body);
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft), var(--glow-soft);
+}
+
+.search {
+  font-family: var(--font-body);
+  letter-spacing: 0.01em;
+}
+
+.search::placeholder {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  font-size: 13px;
+}
+
+/* Pills and chips glow on hover but never on their own. */
+.tiers button:hover,
+.tiers-inline button:hover,
+.social-tabs button:hover,
+.query-hints button:hover,
+.link-toggle:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  box-shadow: var(--glow-soft);
+}
+
+.tiers button.active,
+.tiers-inline button.active,
+.social-tabs button.active {
+  box-shadow: var(--glow);
+}
+
+.chip {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Monospace for data: phone numbers and handles are read digit by digit. */
+.list .meta .fact,
+ul.plain a,
+.location-row,
+.merge-meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* Numerals in the header stats: tabular so they do not jitter as counts change. */
+.stats dd {
+  margin: 0;
+  font-size: 22px;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  /* The counters are the one place a permanent, very faint glow is justified: they are
+     the dashboard readout. */
+  text-shadow: var(--glow-soft);
+}
+
+/* ---- the primary action ------------------------------------------------------ */
+
+.notes button.primary,
+.merge-confirm button.primary {
+  background: linear-gradient(135deg, var(--accent), var(--violet));
+  border-color: transparent;
+  color: var(--accent-contrast);
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.notes button.primary:hover:not(:disabled),
+.merge-confirm button.primary:hover:not(:disabled) {
+  box-shadow: var(--glow-strong);
+  transform: translateY(-1px);
+}
+
+/* ---- avatars ----------------------------------------------------------------- */
+
+.avatar {
+  background: linear-gradient(135deg, var(--accent), var(--violet));
+  color: var(--accent-contrast);
+  font-family: var(--font-display);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Respect a reduced-motion preference: the hover shifts are decorative. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+
+  .list li button:hover .name,
+  .list li button:hover,
+  .notes button.primary:hover:not(:disabled) {
+    transform: none;
+  }
 }

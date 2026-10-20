@@ -7,5 +7,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Sondergraph.Core.Tests/Sondergraph.Core.Tests.csproj" />
+    <Project Path="tests/Sondergraph.Workspace.Tests/Sondergraph.Workspace.Tests.csproj" />
   </Folder>
 </Solution>

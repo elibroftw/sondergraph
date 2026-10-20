@@ -196,6 +196,51 @@ transactions to avoid upgrade deadlock. Combine with git's split:
 8. **Never hold the lock across user interaction.** A GUI modal while holding the lock hangs
    every CLI in the workspace.
 
+### 4.1 Verified corrections from implementation
+
+The following were established by **running code on this machine** (.NET 10.0.400, Linux)
+during task 0002, and two of them contradict what the research above assumed.
+
+**(a) No `FileShare` value lets a managed read open a file held with `FileShare.None`.**
+Measured against a live held lock from a second process:
+
+| Attempt | Result |
+|---|---|
+| `FileStream` + `FileShare.ReadWrite \| Delete` | `IOException` (sharing violation) |
+| `FileStream` + `FileShare.Read` | `IOException` |
+| `FileStream` + `FileShare.ReadWrite` | `IOException` |
+| `FileStream` + `FileShare.None` | `IOException` |
+| `File.ReadAllText` | `IOException` |
+| raw POSIX `open(2)` + `read(2)` | **succeeds** |
+| `cat` (different binary) | **succeeds** |
+
+.NET applies the share mode to *every* managed open, and on Linux `FileShare.None` becomes
+`flock(LOCK_EX)`. `flock` is advisory, so a process that never calls it — `cat`, or a raw
+syscall — reads the bytes regardless. **Consequence:** lock metadata cannot be read by
+another .NET process through the normal file APIs while the lock is held. Diagnostics in
+`WorkspaceLock.ReadHolder` use a raw `open(2)`/`read(2)`/`close(2)` on Unix for exactly
+this reason, falling back to `File.ReadAllText` on Windows (where share modes are mandatory
+and the read may legitimately fail, degrading to a generic message).
+
+**(b) An exclusive lock excludes its own process too.** `TryAcquire` twice in one process
+fails the second time, as it should, but this also means the holder cannot read back its own
+metadata. `WorkspaceLock` therefore keeps an in-process registry of the current holder.
+This matters for a future in-process desktop host (Photino), where the API and any embedded
+caller share a process.
+
+**(c) Retry budgets must not conflate contention with transient handles.** The first
+implementation retried 5× with backoff and then reported a generic error, because the
+transient-handle retry (for Windows antivirus) and genuine lock contention were
+indistinguishable before the attempt. Contention is now detected by the *outcome*, and the
+non-waiting path retries only 3× with 20 ms steps — a caller that genuinely wants to wait
+uses `AcquireAsync`, which polls with its own backoff. Otherwise every contended call would
+stall for half a second before reporting.
+
+**(d) `LibraryImport` requires `AllowUnsafeBlocks`.** Enabling unsafe code across the whole
+assembly to read a diagnostic file is a bad trade, so the raw syscall bindings use
+`DllImport` with `CharSet.Ansi` (UTF-8-compatible; `CharSet.Unicode` would produce UTF-16
+and break non-ASCII paths).
+
 ---
 
 ## 5. Deployment: self-contained, not framework-dependent

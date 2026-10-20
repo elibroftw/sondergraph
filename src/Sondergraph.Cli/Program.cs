@@ -14,39 +14,69 @@ public static class Program
 {
     public static int Main(string[] args)
     {
-        if (args.Length > 0)
+        if (args.Length == 0)
         {
-            switch (args[0])
-            {
-                case "--version" or "-v":
-                    Console.WriteLine($"sg {SondergraphVersion.Version}");
-                    return 0;
-
-                case "--help" or "-h":
-                    PrintUsage();
-                    return 0;
-
-                default:
-                    Console.Error.WriteLine($"sg: unknown command '{args[0]}'");
-                    Console.Error.WriteLine("Run 'sg --help' for usage.");
-                    return 2;
-            }
+            PrintUsage();
+            return ExitCode.Success;
         }
 
-        PrintUsage();
-        return 0;
+        return args[0] switch
+        {
+            "--version" or "-v" => PrintVersion(),
+            "--help" or "-h" => PrintUsage(),
+            "init" => WorkspaceCommands.Init(args),
+            "workspace" or "ws" => DispatchWorkspace(args),
+            var unknown => Unknown(unknown),
+        };
     }
 
-    private static void PrintUsage()
+    private static int PrintVersion()
+    {
+        Console.WriteLine($"sg {SondergraphVersion.Version} (protocol {SondergraphVersion.Protocol})");
+        return ExitCode.Success;
+    }
+
+    private static int DispatchWorkspace(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            Console.Error.WriteLine("sg: 'workspace' needs a subcommand.");
+            Console.Error.WriteLine("sg: available: status, lock");
+            return ExitCode.Usage;
+        }
+
+        return args[1] switch
+        {
+            "status" => WorkspaceCommands.Status(args),
+            "lock" => WorkspaceCommands.LockInfo(args),
+            var unknown => Unknown($"workspace {unknown}"),
+        };
+    }
+
+    private static int Unknown(string command)
+    {
+        Console.Error.WriteLine($"sg: unknown command '{command}'");
+        Console.Error.WriteLine("sg: run 'sg --help' for usage.");
+        return ExitCode.Usage;
+    }
+
+    private static int PrintUsage()
     {
         Console.WriteLine($"sg {SondergraphVersion.Version} — sondergraph, everything all at once.");
         Console.WriteLine();
         Console.WriteLine("Usage: sg <command> [options]");
         Console.WriteLine();
-        Console.WriteLine("Commands are not implemented yet. See tasks/ for the backlog.");
+        Console.WriteLine("Workspace:");
+        Console.WriteLine("  init [path]            Create a workspace (default: current directory).");
+        Console.WriteLine("  workspace status       Show the workspace and its lock state.");
+        Console.WriteLine("  workspace lock         Show details of the current lock holder.");
         Console.WriteLine();
         Console.WriteLine("Options:");
-        Console.WriteLine("  -h, --help      Show this help.");
-        Console.WriteLine("  -v, --version   Show version.");
+        Console.WriteLine("  -h, --help             Show this help.");
+        Console.WriteLine("  -v, --version          Show version.");
+        Console.WriteLine();
+        Console.WriteLine("Commands for contacts, ingestion and publishing are not implemented yet;");
+        Console.WriteLine("see tasks/ for the backlog.");
+        return ExitCode.Success;
     }
 }

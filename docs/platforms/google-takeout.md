@@ -13,20 +13,40 @@ Structures transcribed from the actual archives. Values are invented.
 Takeout is not one product — it is a container for whichever Google services the user
 selected, split across multiple zips by size. **The archives must be surveyed, not assumed.**
 
-| Archive | Size | Contents |
-|---|---|---|
-| `...T025135Z-1-001.zip` | 4 KB | `Takeout/Contacts/Starred in Android/*.vcf` (empty) |
-| `...T025135Z-2-001.zip` | **486 MB** | `Takeout/Mail/{Archived,Starred,Sent}.mbox` |
-| `takeout/...T025301Z-1-001.zip` | small | **`Takeout/Contacts/` — the useful one** |
-| `takeout/...T025301Z-2-001.zip` | large | Mail (duplicate of the above) |
+### Multi-part and multi-account handling
 
-**This export contains only Contacts and Mail.** There is no `Takeout/Profile`, no
+Two properties of Takeout that the ingester must handle, both observed:
+
+**Parts are split by size, not by service.** The split is not predictable:
+
+| Export | Part 1 | Part 2 |
+|---|---|---|
+| `T025135Z` | 366 bytes — **1 entry**, an empty vcf | 509 MB — Mail |
+| `T025301Z` | 404 KB — **27 entries**, the real contacts | 175 MB — Mail |
+
+So part 1 of one export contains **no contacts at all**. A user who downloads only part 1
+gets an empty import with no indication anything is missing. Part 2 of the other set is a
+**0-byte, corrupt archive** which must be reported rather than silently skipped.
+
+**Multiple accounts and multiple exports coexist in one directory.** A user may export more
+than one Google account, and may export the same account twice. Contacts then overlap.
+
+**The ingester handles both like this:**
+
+- Pointing `sg ingest parse` at a **directory** collects every `.zip` beneath it
+  (recursively, since downloads land in subdirectories) and treats them as **one logical
+  export** (`MultiZipRawSource`).
+- Per-part read failures are reported as warnings, and the readable parts still import.
+- Overlapping contacts from repeated exports are **not** removed by the reader. They carry
+  the same identifier, so the materialiser collapses them into one person. Keeping that
+  division matters: the reader reports what is there, the materialiser decides who is who.
+
+**Practical guidance:** `sg ingest parse <dir>` is the right invocation for Takeout. Pointing
+at a single part can silently yield a partial or empty set.
+
+**These exports contain only Contacts and Mail.** There is no `Takeout/Profile`, no
 `Takeout/My Activity`, no YouTube, no Location History. If those were selected, they did not
 make it into this download — or a second selection is still pending.
-
-**Both Takeout sets appear to be duplicates of each other** (same timestamp date, different
-seconds). Confirm before parsing both — ingesting the same contacts twice is exactly the
-duplication the idempotency requirement (task 0004) exists to prevent.
 
 ---
 

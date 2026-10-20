@@ -106,6 +106,39 @@ internal static partial class IngestCommands
             source = opened.ValueOrThrow();
             disposable = (IDisposable)source;
         }
+        else if (Directory.Exists(options.Path))
+        {
+            // A directory containing zips is treated as one logical export. This is the
+            // common case for Google Takeout, which splits an export across several
+            // archives by size and does not split them predictably by service.
+            // Recursive, not top-level only. Exports are frequently unzipped into a
+            // subdirectory (a Takeout download lands in takeout/, for instance), so a
+            // top-level scan silently finds nothing and reports an empty import.
+            var archives = Directory
+                .EnumerateFiles(options.Path, "*.zip", SearchOption.AllDirectories)
+                .Order(StringComparer.Ordinal)
+                .ToList();
+
+            if (archives.Count > 0)
+            {
+                var multi = MultiZipRawSource.Open(archives, options.Path!);
+                source = multi;
+                disposable = multi;
+
+                Console.WriteLine($"Found {archives.Count} archive(s) in {options.Path}");
+
+                foreach (var problem in multi.Problems)
+                {
+                    // A truncated part is a common failure and must not be mistaken for a
+                    // complete export. Report it loudly but carry on with what is readable.
+                    Console.Error.WriteLine($"sg: warning: unreadable archive {problem}");
+                }
+            }
+            else
+            {
+                source = new DirectoryRawSource(options.Path!);
+            }
+        }
         else
         {
             source = new DirectoryRawSource(options.Path!);

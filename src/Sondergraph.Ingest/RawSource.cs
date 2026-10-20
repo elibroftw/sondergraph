@@ -143,6 +143,131 @@ public sealed class DirectoryRawSource : IRawSource
 }
 
 /// <summary>
+/// A raw source spanning several archives, presented as one.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Google Takeout splits a single export across multiple zips by size, and the split is not
+/// by service in a predictable way: in the observed data one export had contacts in part 1
+/// and mail in part 2, while an adjacent export had an effectively empty part 1. A user who
+/// downloads only part 1 can receive zero contacts and no indication that anything is
+/// missing.
+/// </para>
+/// <para>
+/// Treating the parts as one source means a parser sees the complete export and the caller
+/// does not have to know how Google chose to split it. Paths are namespaced by part to keep
+/// them unique, but a parser matching on file name still finds everything.
+/// </para>
+/// <para>
+/// Unreadable parts are reported rather than skipped silently: a truncated download is a
+/// common failure, and quietly producing a partial contact set is worse than an error.
+/// </para>
+/// </remarks>
+public sealed class MultiZipRawSource : IRawSource, IDisposable
+{
+    private readonly List<ZipRawSource> _parts = [];
+    private readonly List<string> _problems = [];
+    private readonly string _description;
+
+    private MultiZipRawSource(string description)
+    {
+        _description = description;
+    }
+
+    /// <inheritdoc />
+    public string Description => _description;
+
+    /// <summary>Archive paths that could not be opened, with the reason.</summary>
+    public IReadOnlyList<string> Problems => _problems;
+
+    /// <summary>Opens every readable archive matching <paramref name="zipPaths"/>.</summary>
+    public static MultiZipRawSource Open(IEnumerable<string> zipPaths, string description)
+    {
+        ArgumentNullException.ThrowIfNull(zipPaths);
+
+        var source = new MultiZipRawSource(description);
+
+        foreach (var path in zipPaths)
+        {
+            var opened = ZipRawSource.Open(path);
+
+            if (opened.IsOk)
+            {
+                source._parts.Add(opened.ValueOrThrow());
+            }
+            else
+            {
+                source._problems.Add($"{Path.GetFileName(path)}: {opened.Message}");
+            }
+        }
+
+        return source;
+    }
+
+    /// <inheritdoc />
+    public IEnumerable<string> EnumerateFiles()
+    {
+        foreach (var part in _parts)
+        {
+            foreach (var file in part.EnumerateFiles())
+            {
+                yield return file;
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Each part is searched in turn. An earlier part wins, which is harmless because the
+    /// parts of one export do not deliberately duplicate a path.
+    /// </remarks>
+    public Stream? OpenRead(string relativePath)
+    {
+        foreach (var part in _parts)
+        {
+            var stream = part.OpenRead(relativePath);
+
+            if (stream is not null)
+            {
+                return stream;
+            }
+        }
+
+        return null;
+    }
+
+    /// <inheritdoc />
+    public string? ReadAllText(string relativePath)
+    {
+        foreach (var part in _parts)
+        {
+            var text = part.ReadAllText(relativePath);
+
+            if (text is not null)
+            {
+                return text;
+            }
+        }
+
+        return null;
+    }
+
+    /// <inheritdoc />
+    public bool Exists(string relativePath) => _parts.Any(p => p.Exists(relativePath));
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        foreach (var part in _parts)
+        {
+            part.Dispose();
+        }
+
+        _parts.Clear();
+    }
+}
+
+/// <summary>
 /// A raw source backed by a zip archive.
 /// </summary>
 /// <remarks>

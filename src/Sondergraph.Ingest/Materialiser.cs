@@ -258,6 +258,20 @@ public sealed class Materialiser
             keys.Add($"url:{account.ProfileUrl.Trim().TrimEnd('/').ToLowerInvariant()}");
         }
 
+        // A platform handle is a strong identifier in its own right, scoped by platform.
+        //
+        // Without this, any account arriving with no phone, email or URL was discarded as
+        // "no usable identifier" - which is exactly Discord's situation, since its export
+        // carries a username and nothing else, and every Instagram follower likewise has no
+        // profile URL in the followers file. 122 Discord friends were all dropped.
+        //
+        // Scoped by platform ("handle:instagram:ada") so the same handle on two platforms
+        // does not merge two different people.
+        if (!string.IsNullOrWhiteSpace(account.Handle))
+        {
+            keys.Add($"handle:{account.Platform.ToLowerInvariant()}:{PlatformAccount.NormaliseHandle(account.Handle)}");
+        }
+
         return keys.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
@@ -285,6 +299,13 @@ public sealed class Materialiser
             if (!string.IsNullOrWhiteSpace(account.ProfileUrl))
             {
                 keys.Add($"url:{account.ProfileUrl.Trim().TrimEnd('/').ToLowerInvariant()}");
+            }
+
+            // Mirrors the account-side rule, or an incoming record could never find the
+            // person it should merge into once the handle-only key exists on one side.
+            if (!string.IsNullOrWhiteSpace(account.Handle))
+            {
+                keys.Add($"handle:{account.Platform.ToLowerInvariant()}:{PlatformAccount.NormaliseHandle(account.Handle)}");
             }
         }
 

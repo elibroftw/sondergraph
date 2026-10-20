@@ -27,6 +27,7 @@ internal static partial class IngestCommands
         new LinkedinParser(),
         new FacebookParser(),
         new InstagramParser(),
+        new DiscordParser(),
     ];
 
     internal static int Parse(string[] args)

@@ -215,16 +215,23 @@ public sealed class InstagramParser : IPlatformParser
 
             foreach (var record in ParseFile(source, file, kind, context))
             {
-                // Only the two follow files are subject to the mutual rule. Close friends and
-                // follow requests are separate facts and are not filtered.
-                if (mutual is not null
-                    && record is ObservedAccount account
-                    && (Path.GetFileName(file).Equals("following.json", StringComparison.OrdinalIgnoreCase)
-                        || Path.GetFileName(file).Equals("followers_1.json", StringComparison.OrdinalIgnoreCase))
-                    && !mutual.Contains(PlatformAccount.NormaliseHandle(account.Handle)))
+                // EVERY file reports who the account is, so an account that is not a mutual
+                // follow must not become a contact merely because it also appears in a
+                // follow-request or close-friends file.
+                //
+                // The original version filtered only following/followers and let the other
+                // three through. A single account commonly appears in several files - one
+                // handle in this export is in followers_1, pending_follow_requests and
+                // recent_follow_requests at once - so a non-mutual follower leaked in through
+                // the side door.
                 {
-                    dropped++;
-                    continue;
+                    if (mutual is not null
+                        && record is ObservedAccount account
+                        && !mutual.Contains(PlatformAccount.NormaliseHandle(account.Handle)))
+                    {
+                        dropped++;
+                        continue;
+                    }
                 }
 
                 yield return record;

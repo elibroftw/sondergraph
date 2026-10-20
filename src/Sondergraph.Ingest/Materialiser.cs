@@ -324,9 +324,20 @@ public sealed class Materialiser
     /// Merges a new record into an existing person without losing hand-edited data.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <b>Union, never replace.</b> Ingest must not clobber an alias, location or note the
     /// user typed by hand (DESIGN.md §4.2). Only machine-owned fields are written, and the
     /// display name is only taken from the record when the person has none.
+    /// </para>
+    /// <para>
+    /// <b>Known limitation:</b> union semantics mean a correction to the parser does not
+    /// propagate to records already written. When the vCard parser stopped treating
+    /// "451-90" as a phone number, existing people kept it, because enriching only adds.
+    /// That is the right default — the alternative is re-ingest silently deleting data the
+    /// user may have edited — but it means parser fixes need either a fresh workspace or an
+    /// explicit repair pass. Making re-ingest destructive to unmanaged fields would be a
+    /// separate, opt-in operation rather than the default.
+    /// </para>
     /// </remarks>
     private static Person Enrich(Person person, ObservedAccount account, string platform)
     {

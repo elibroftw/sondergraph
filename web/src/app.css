@@ -195,6 +195,10 @@ header {
 
 .list .name {
   font-weight: 550;
+  /* Wrap rather than truncate. Two genuinely different people can share a name prefix
+     ("Amit Phadnis" / "Amit S Phadnis"); clipping both to the same visible text makes
+     correct data look like a duplicate record. */
+  overflow-wrap: anywhere;
 }
 
 .list .meta {

@@ -417,6 +417,28 @@ public sealed class VCardParserTests
     }
 
     [Fact]
+    public void Treats_short_codes_as_shortcodes_not_phone_numbers()
+    {
+        // The real exports contain TEL values like "451-90", "38887" and "100001" - extensions
+        // and service shortcodes. Offering those as numbers to call is misleading, and they
+        // would corrupt phone-based identity matching between sources. They are preserved,
+        // just not as phones.
+        const string vcf = """
+            BEGIN:VCARD
+            VERSION:3.0
+            FN:Example Person
+            TEL;TYPE=CELL:+1 555 0111
+            TEL;TYPE=WORK:451-90
+            END:VCARD
+            """;
+
+        var account = ParseAccounts(vcf)[0];
+
+        Assert.Equal(["+1 555 0111"], account.Phones);
+        Assert.Contains(account.Extra, kv => kv.Value == "451-90");
+    }
+
+    [Fact]
     public void Parses_multiple_phones_and_records_their_types()
     {
         const string vcf = "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Example\r\n"

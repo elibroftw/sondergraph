@@ -287,6 +287,20 @@ public sealed class VCardParser : IPlatformParser
 
                 case "TEL":
                     var phone = property.Value.Trim();
+
+                    // A TEL with very few digits is an extension or a service shortcode
+                    // ("451-90", "38887", "100001"), not a dialable number. The real exports
+                    // contain several. They are kept in Extra so nothing is silently lost,
+                    // but they are not offered as phone numbers: presenting "451-90" as a
+                    // number to call is misleading, and it would poison phone-based identity
+                    // matching between sources.
+                    var telDigits = Person.DigitsOnly(phone);
+                    if (telDigits.Length is > 0 and < 7)
+                    {
+                        extra[$"shortcode.{extra.Count}"] = phone;
+                        break;
+                    }
+
                     if (phone.Length > 0)
                     {
                         phones.Add(phone);

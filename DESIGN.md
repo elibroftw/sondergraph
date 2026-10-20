@@ -157,6 +157,9 @@ keeping Core's public surface result-shaped (`Result<T>`, not exceptions-as-cont
   affinity score.
 - **Node attributes** = locations, notes, tags, tier.
 
+The graph is a **query model, not a storage format.** It is assembled in memory from the
+files in `data/` when a command needs it (§4.2). There is no persisted graph structure.
+
 This makes the requested features fall out as graph operations:
 
 | Feature | Graph operation |
@@ -172,40 +175,142 @@ This makes the requested features fall out as graph operations:
 That last pair is the argument for the graph model: they are one-liners here and
 near-impossible over a contact table.
 
-### 4.2 On-disk shape
+### 4.2 Storage: files, not a database
 
-The `data/` directory is the source of truth. Proposed:
+**Decision: `people/` stays markdown files. No database for person records. No persisted
+graph index.**
+
+The product thesis is *a directory you own*. A SQLite blob is opaque — you cannot `grep` it,
+open it in an editor, diff it in git, or read it in ten years without this app. Files are
+the reason the project is named what it is.
+
+Five reasons, in order of weight:
+
+1. **Feature #3 forces it.** Notes must interoperate with Notesnook, Obsidian, Apple Notes.
+   Every one of those is a *file-based* ecosystem — Obsidian and Logseq read markdown off
+   disk. If canonical records lived in SQLite, we would need an export layer before we could
+   build the integration we actually promised, and round-trip-safe editing between two apps
+   is genuinely hard. Keep the data where the integrations already live and it becomes a
+   mapping problem instead of a sync-engine problem.
+2. **Merges must be reviewable.** `graft` — collapsing two people into one — is the riskiest
+   operation in the system. As a file change it appears in `git diff` and can be inspected
+   *before* committing. As a SQL `UPDATE` it is only as trustworthy as our own merge log.
+3. **Contacts are small.** A person is a few hundred bytes of frontmatter. Even 10,000
+   contacts is ~20 MB of text, which the OS page cache absorbs. **There is no performance
+   problem here to solve.**
+4. **Survivability.** The data outlives this application.
+5. **Conflicts should be visible.** Two writers touching one person is something a human
+   should resolve, not something to auto-merge silently.
+
+#### No graph index either
+
+`graph.json` is **removed**. There is no persisted graph structure.
+
+The graph is built **in memory, on demand**, for the command that needs it; process lifetime
+is the cache. Reading ~20 MB of frontmatter from page cache is milliseconds.
+
+This is simpler than persisting an index and it deletes an entire category of stale-index
+bugs — the failure mode where cache and files disagree and nothing tells you. The
+adjacent-feature queries above run fine in memory at this scale.
+
+**Revisit only if measurement says otherwise.** The trigger is a demonstrated bottleneck,
+not a predicted one.
+
+#### SQLite is deferred, not forbidden
+
+One plausible future need: **`data/raw/` is the real scale problem, not `people/`.** Social
+dumps mean hundreds of thousands of posts, and feature #2 exports them. Full-text search
+over post bodies, or incremental export ("which posts have I already published?"), could get
+slow when scanning per command.
+
+If that day arrives, add a **disposable SQLite cache beside `raw/`**, subject to the rule
+that keeps it honest:
+
+> **Any database must be fully rebuildable from `data/`. Deleting it and re-deriving must
+> produce identical results.**
+
+Make that a test, not a promise: build a workspace, snapshot the derived state, delete it,
+rebuild, assert identical query results. That invariant is what stops the "just one more
+thing in the database" creep.
+
+Do not decide this now. Start files-only. The problem will announce itself.
+
+#### Layout
 
 ```
 data/
 ├── people/
 │   └── <person-id>/
-│       ├── person.md          # frontmatter: name, tier, locations, tags, aliases
-│       ├── accounts.json      # platform handles mapped to this person
-│       ├── notes/             # your notes (see §6)
+│       ├── person.md          # ALL person data: identity, tier, locations, tags,
+│       │                      #   aliases, and platform handles (see below)
+│       ├── notes/             # your notes (see §6.1)
 │       └── media/
 ├── raw/                       # untouched dumps, per-platform, append-only
 │   ├── mastodon/
 │   ├── instagram/
 │   └── <platform>/
-├── graph.json                 # derived index; rebuildable from above
+├── merges.json                # append-only merge log (§4.3)
 └── .sondergraph/
     ├── lock
-    └── cache/
+    └── cache/                 # disposable; safe to delete at any time
 ```
 
-**Principle: raw dumps are append-only and never edited. Everything else is derived and
-rebuildable.** `graph.json` is a cache; deleting it must be safe.
+**Principle: raw dumps are append-only and never edited. Person records are hand-editable.
+Everything under `.sondergraph/cache/` is derived, and deleting it is always safe.**
+
+#### Platform handles live in `person.md`
+
+`accounts.json` is dropped. Handles become a list in `person.md` frontmatter:
+
+```yaml
+---
+id: ada-lovelace
+name: Ada Lovelace
+tier: close
+locations: [London]
+aliases: [Ada L., AAL]
+accounts:
+  - platform: mastodon
+    handle: "@ada@example.social"
+    first_seen: 2026-10-19
+  - platform: bluesky
+    handle: "@ada.bsky.social"
+---
+```
+
+One file per person means **one thing to edit, one thing to diff, one merge-conflict site**
+instead of two. The ingest pipeline writes only the `accounts` key; everything else in the
+file is hand-owned. That preserves the original motivation for splitting the file — machine
+writes must not clobber human edits — without paying for it with a second file.
+
+Ingest must **merge into** the existing `accounts` list and never rewrite the file wholesale,
+so a hand-added alias or location cannot be lost.
+
+#### Open question: are notes part of `person.md`?
+
+Currently `notes/` is a sibling directory. The alternative is a single file per person with
+notes inline. Unresolved, and it matters:
+
+- **Separate `notes/`** — better if notes grow long, if each note is a distinct document with
+  its own frontmatter, or if we want to point an external app at the notes directory alone.
+- **Inline in `person.md`** — better for the Obsidian/Notesnook story, where one file per
+  person maps cleanly onto one note per person.
+
+Leaning: **separate `notes/`**, because notes are user-authored documents with their own
+lifecycle, and a single long `person.md` makes both the merge-conflict surface and the
+external-integration target ambiguous. Revisit when task 0006 starts.
 
 ### 4.3 Merge semantics
 
 Merging is the riskiest operation, so it gets explicit rules:
 
-- Merges are **recorded, not destructive** — a `merges.json` log plus a redirect from the
-  absorbed person-id.
+- Merges are **recorded, not destructive** — an append-only `merges.json` log plus a
+  redirect from the absorbed person-id.
 - **Field-level conflict resolution:** per field, choose winner, or union for list-typed
   fields (aliases, locations, accounts).
 - **Reversible:** `sg ungraft <merge-id>` restores the prior state from the log.
+- **Visible in `git diff`** — the absorbed person's file is not deleted silently; the
+  redirect and the surviving record are both reviewable before commit.
 
 Overwriting a contact record with no way back is the one mistake users will not forgive.
 
@@ -346,9 +451,9 @@ Local IPC and the handshake contract are in
 ## 10. Open questions
 
 1. **Platform priority.** Which ingest adapters first? This drives the `raw/` schema.
-2. **Graph index format.** `graph.json` vs SQLite. JSON is greppable and diff-friendly;
-   SQLite is better for the triangle/decay queries. Possibly: JSON as truth, SQLite as a
-   rebuildable index. (Locking research leans toward SQLite-for-mutable-state, WAL mode.)
+2. ~~**Graph index format.**~~ **Resolved** — no graph index at all; built on demand in
+   memory (§4.2). SQLite is deferred as a disposable cache, and only if `raw/` scale
+   demands it.
 3. **Person identity resolution.** How much automatic matching, and how much user
    confirmation? Auto-merge that guesses wrong is worse than no auto-merge.
 4. ~~**Desktop shell choice.**~~ **Resolved** — Photino.NET; Tauri as runner-up.
@@ -357,6 +462,9 @@ Local IPC and the handshake contract are in
    Gitignore `data/`? (Leaning: `data/` is gitignored, with an opt-in encrypted
    export for backup.)
 6. **Notes integration depth** — see §6.1.
+7. **Are notes inline in `person.md` or a separate `notes/` directory?** Affects how clean
+   the Obsidian/Notesnook integration can be. §4.2 has the tradeoff; leaning separate.
+   Revisit when task 0006 starts.
 
 ---
 

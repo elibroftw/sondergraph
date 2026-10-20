@@ -3,6 +3,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Sondergraph.Core\Sondergraph.Core.csproj" />
     <ProjectReference Include="..\Sondergraph.Workspace\Sondergraph.Workspace.csproj" />
+    <ProjectReference Include="..\Sondergraph.People\Sondergraph.People.csproj" />
+    <ProjectReference Include="..\Sondergraph.Ingest\Sondergraph.Ingest.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

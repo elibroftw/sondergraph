@@ -163,6 +163,17 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+/** DELETEs and parses a JSON body, for endpoints that return the updated state. */
+async function del2<T>(path: string): Promise<T> {
+  const response = await fetch(path, { method: 'DELETE' })
+
+  if (!response.ok) {
+    throw await toError(response)
+  }
+
+  return (await response.json()) as T
+}
+
 /** DELETEs and returns nothing. */
 async function del(path: string): Promise<void> {
   const response = await fetch(path, { method: 'DELETE' })
@@ -320,6 +331,29 @@ export const api = {
   /** How-you-know-them values in use, derived from the people who have one. */
   connections: (signal?: AbortSignal) =>
     request<ChannelsResponse>('/api/connections', signal),
+
+  /** Adds an account for a platform with no export, e.g. a Signal number. */
+  addAccount: async (
+    id: string,
+    platform: string,
+    handle: string,
+    profileUrl?: string,
+  ): Promise<AccountSummary[]> => {
+    const result = await post<{ accounts: AccountSummary[] }>(
+      `/api/people/${encodeURIComponent(id)}/accounts`,
+      { platform, handle, profileUrl },
+    )
+    return result.accounts
+  },
+
+  /** Removes an account by platform and handle. */
+  removeAccount: async (id: string, platform: string, handle: string): Promise<AccountSummary[]> => {
+    const qs = `platform=${encodeURIComponent(platform)}&handle=${encodeURIComponent(handle)}`
+    const result = await del2<{ accounts: AccountSummary[] }>(
+      `/api/people/${encodeURIComponent(id)}/accounts?${qs}`,
+    )
+    return result.accounts
+  },
 
   /** Renames a person. The id is unchanged, so notes and merges stay attached. */
   rename: async (id: string, name: string): Promise<void> => {

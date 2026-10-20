@@ -93,6 +93,11 @@ public static class SondergraphEndpoints
 
         api.MapPatch("/people/{id}/met", PatchHowWeMet);
         api.MapPatch("/people/{id}/name", PatchName);
+
+        // Accounts for platforms with no export. Signal has no contact export at all, so a
+        // Signal number or username can only ever be added by hand.
+        api.MapPost("/people/{id}/accounts", AddAccount);
+        api.MapDelete("/people/{id}/accounts", RemoveAccount);
         api.MapGet("/connections", ListConnections);
 
         // Merging. POST /api/merges creates one; DELETE reverses it. Both are explicit
@@ -372,6 +377,7 @@ public static class SondergraphEndpoints
     private sealed record PreferredRequest(string? Channel);
     private sealed record MetRequest(string? HowWeMet);
     private sealed record NameRequest(string? Name);
+    private sealed record AccountRequest(string? Platform, string? Handle, string? ProfileUrl);
 
     private sealed record TierRequest(string? Tier);
     private sealed record TagsRequest(List<string>? Add, List<string>? Remove);
@@ -603,6 +609,77 @@ public static class SondergraphEndpoints
 
         return Results.Ok(new { personId = id, name = request.Name.Trim() });
     }
+
+    private static IResult AddAccount(WorkspaceProvider provider, string id, AccountRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Platform) || string.IsNullOrWhiteSpace(request.Handle))
+        {
+            return Results.Json(
+                new { error = "An account needs a platform and a handle.", code = nameof(ErrorCode.Unknown) },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var changed = new PersonEditor(store.ValueOrThrow())
+            .AddAccount(id, request.Platform, request.Handle, request.ProfileUrl);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        var reloaded = store.ValueOrThrow().Load(id);
+
+        return reloaded.IsOk
+            ? Results.Ok(new { personId = id, accounts = ToAccounts(reloaded.ValueOrThrow()) })
+            : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
+    }
+
+    private static IResult RemoveAccount(WorkspaceProvider provider, string id, string? platform, string? handle)
+    {
+        if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(handle))
+        {
+            return Results.Json(
+                new { error = "Removing an account needs a platform and a handle.", code = nameof(ErrorCode.Unknown) },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var changed = new PersonEditor(store.ValueOrThrow()).RemoveAccount(id, platform, handle);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        var reloaded = store.ValueOrThrow().Load(id);
+
+        return reloaded.IsOk
+            ? Results.Ok(new { personId = id, accounts = ToAccounts(reloaded.ValueOrThrow()) })
+            : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
+    }
+
+    /// <summary>Projects accounts for the API response.</summary>
+    private static IEnumerable<object> ToAccounts(Person person) =>
+        person.Accounts.Select(a => new
+        {
+            platform = a.Platform,
+            handle = a.Handle,
+            displayName = a.DisplayName,
+            profileUrl = a.ProfileUrl,
+        });
 
     private static IResult ListConnections(WorkspaceProvider provider)
     {

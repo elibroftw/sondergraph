@@ -6,6 +6,9 @@ const PLATFORM_LABELS: Record<string, string> = {
   facebook: 'Facebook',
   instagram: 'Instagram',
   linkedin: 'LinkedIn',
+  signal: 'Signal',
+  whatsapp: 'WhatsApp',
+  telegram: 'Telegram',
   mastodon: 'Mastodon',
   bluesky: 'Bluesky',
 }

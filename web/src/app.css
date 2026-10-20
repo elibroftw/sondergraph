@@ -1390,3 +1390,69 @@ ul.plain a,
   opacity: 0.5;
   cursor: default;
 }
+
+/* ── Account management (Signal, WhatsApp, and anything without an export) ─────── */
+
+.account-add-btn {
+  margin-top: 10px;
+  padding: 5px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.account-add-btn:hover {
+  background: var(--hover);
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.account-add {
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.account-add input {
+  min-width: 120px;
+}
+
+.account-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.account-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.account-handle {
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+.account-remove {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  border-radius: 999px;
+}
+
+.account-remove:hover:not(:disabled) {
+  color: var(--danger);
+  background: var(--danger-soft);
+}

@@ -67,6 +67,79 @@ public sealed class PersonEditor
     }
 
     /// <summary>
+    /// Adds an account for a platform the export never covered.
+    /// </summary>
+    /// <param name="personId">Person to annotate.</param>
+    /// <param name="platform">Platform key, e.g. <c>signal</c>.</param>
+    /// <param name="handle">Handle, username or phone number on that platform.</param>
+    /// <param name="profileUrl">Optional profile URL.</param>
+    /// <remarks>
+    /// <para>
+    /// Ingest only knows the platforms it has exports for. Signal in particular has no
+    /// contact export at all, so a Signal number or username can only ever be entered by
+    /// hand. This is the general path for that: any platform, any handle.
+    /// </para>
+    /// <para>
+    /// An existing account with the same platform and handle is replaced rather than
+    /// duplicated, so correcting a typo does not leave two entries.
+    /// </para>
+    /// </remarks>
+    public Result AddAccount(string personId, string platform, string handle, string? profileUrl = null)
+    {
+        if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(handle))
+        {
+            return Result.Fail(ErrorCode.Unknown, "An account needs a platform and a handle.");
+        }
+
+        var account = PlatformAccount.Create(platform, handle, null, profileUrl);
+
+        return Mutate(personId, person =>
+        {
+            var accounts = person.Accounts
+                .Where(a => !string.Equals(a.Platform, account.Platform, StringComparison.OrdinalIgnoreCase)
+                    || a.HandleNormalised != account.HandleNormalised)
+                .Append(account with { FirstSeen = DateOnly.FromDateTime(DateTime.UtcNow) })
+                .ToList();
+
+            // Sources drive the source filter, so a hand-added account must register its
+            // platform there too. Otherwise the person is filtered out of their own source.
+            var sources = person.Sources.Contains(account.Platform, StringComparer.OrdinalIgnoreCase)
+                ? person.Sources
+                : [.. person.Sources, account.Platform];
+
+            return person with { Accounts = accounts, Sources = sources };
+        });
+    }
+
+    /// <summary>Removes an account by platform and handle.</summary>
+    public Result RemoveAccount(string personId, string platform, string handle)
+    {
+        if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(handle))
+        {
+            return Result.Fail(ErrorCode.Unknown, "An account needs a platform and a handle.");
+        }
+
+        var normalised = PlatformAccount.NormaliseHandle(handle);
+
+        return Mutate(personId, person =>
+        {
+            var accounts = person.Accounts
+                .Where(a => !(string.Equals(a.Platform, platform, StringComparison.OrdinalIgnoreCase)
+                    && a.HandleNormalised == normalised))
+                .ToList();
+
+            // Keep the source listed while any account on that platform remains.
+            var remaining = accounts.Select(a => a.Platform).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var sources = person.Sources
+                .Where(s => !string.Equals(s, platform, StringComparison.OrdinalIgnoreCase)
+                    || remaining.Contains(s))
+                .ToList();
+
+            return person with { Accounts = accounts, Sources = sources };
+        });
+    }
+
+    /// <summary>
     /// Adds a tag, keeping the list sorted and free of duplicates.
     /// </summary>
     /// <remarks>

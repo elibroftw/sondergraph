@@ -100,7 +100,12 @@
 
   <div class="trace">
     <div class="trace-social">
-      <SocialFrame accounts={person.accounts} personName={person.name} />
+      <SocialFrame
+        personId={person.id}
+        accounts={person.accounts}
+        personName={person.name}
+        onchanged={onchanged}
+      />
     </div>
   </div>
 

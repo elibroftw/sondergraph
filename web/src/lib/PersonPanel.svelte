@@ -4,6 +4,7 @@
   import NoteEditor from './NoteEditor.svelte'
   import PersonFields from './PersonFields.svelte'
   import MergeBox from './MergeBox.svelte'
+  import SocialFrame from './SocialFrame.svelte'
 
   // `onchanged` lets the parent re-fetch the detail after an edit, so the panel always shows
   // what the server actually stored rather than an optimistic local guess.
@@ -30,6 +31,12 @@
     howWeMet={person.howWeMet}
     onchange={onchanged}
   />
+
+  <div class="trace">
+    <div class="trace-social">
+      <SocialFrame accounts={person.accounts} personName={person.name} />
+    </div>
+  </div>
 
   {#if person.phones.length > 0}
     <section>

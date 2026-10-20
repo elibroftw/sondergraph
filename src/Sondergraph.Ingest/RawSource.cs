@@ -16,18 +16,48 @@ public sealed class DirectoryRawSource : IRawSource
 {
     private readonly string _root;
 
-    /// <summary>Creates a source over a directory.</summary>
+    /// <summary>
+    /// The single file this source exposes, or null when it covers a whole directory.
+    /// </summary>
+    /// <remarks>
+    /// Users routinely want to ingest one file — <c>contacts.vcf</c> is the obvious case, and
+    /// it sits loose in an export directory rather than in a folder of its own. Requiring
+    /// them to create a directory for it would be a needless ceremony, and pointing at the
+    /// file directly is the natural thing to type.
+    /// </remarks>
+    private readonly string? _singleFile;
+
+    /// <summary>Creates a source over a directory, or over a single file within one.</summary>
+    /// <param name="root">A directory, or a path to one file.</param>
     public DirectoryRawSource(string root)
     {
-        _root = Path.GetFullPath(root);
+        var full = Path.GetFullPath(root);
+
+        if (File.Exists(full))
+        {
+            // The file's own directory becomes the root, so relative paths inside the
+            // source are just the file name. That keeps sibling lookup working for things
+            // like vCard photo files.
+            _singleFile = Path.GetFileName(full);
+            _root = Path.GetDirectoryName(full) ?? full;
+            return;
+        }
+
+        _root = full;
     }
 
     /// <inheritdoc />
-    public string Description => _root;
+    public string Description => _singleFile is null ? _root : Path.Combine(_root, _singleFile);
 
     /// <inheritdoc />
     public IEnumerable<string> EnumerateFiles()
     {
+        if (_singleFile is not null)
+        {
+            yield return _singleFile;
+            yield break;
+        }
+
         if (!Directory.Exists(_root))
         {
             yield break;

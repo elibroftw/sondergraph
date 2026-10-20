@@ -190,7 +190,20 @@ public static class SondergraphEndpoints
                     StringComparison.OrdinalIgnoreCase));
         }
 
-        var materialised = people.ToList();
+        // Order by usefulness, not alphabetically.
+        //
+        // A raw ingest produces ~1,600 people, of which only ~230 have a phone number and
+        // ~75 are confirmed by more than one source. Alphabetical order buries all of them
+        // under scraped Instagram handles, which look like noise and make the app appear to
+        // be working badly when it is working well. Sorting by evidence puts the people the
+        // user can actually contact at the top, which is what the mass contact view is for.
+        var materialised = people
+            .OrderByDescending(p => p.Phones.Count > 0)
+            .ThenByDescending(p => p.Sources.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+            .ThenByDescending(p => p.Emails.Count > 0)
+            .ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
         var total = materialised.Count;
 
         // Cap the payload. A browser rendering 1,600 rows at once is slow and unhelpful;

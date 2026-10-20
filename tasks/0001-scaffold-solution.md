@@ -1,13 +1,11 @@
 ---
 id: 0001
 title: Scaffold the .NET solution and project skeleton
-status: todo
+status: pending
 priority: critical
-assignee: elopez
 labels: [infra, dotnet]
-blocked_by: []
+dependencies: []
 created: 2026-10-19
-updated: 2026-10-19
 ---
 
 ## Context

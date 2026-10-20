@@ -1,13 +1,11 @@
 ---
 id: 0006
 title: Trace view — per-contact dual pane
-status: todo
+status: pending
 priority: medium
-assignee: elopez
 labels: [ui, notes, integrations]
-blocked_by: [0003, 0009]
+dependencies: [0003, 0009]
 created: 2026-10-19
-updated: 2026-10-19
 ---
 
 ## Context

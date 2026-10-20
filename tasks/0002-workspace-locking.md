@@ -1,13 +1,11 @@
 ---
 id: 0002
 title: Workspace discovery and locking
-status: todo
+status: pending
 priority: critical
-assignee: elopez
 labels: [core, workspace, concurrency]
-blocked_by: [0001]
+dependencies: [0001]
 created: 2026-10-19
-updated: 2026-10-19
 ---
 
 ## Context

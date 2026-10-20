@@ -1,13 +1,11 @@
 ---
 id: 0004
 title: Ingest adapter interface and first platform
-status: todo
+status: pending
 priority: high
-assignee: elopez
 labels: [ingest, adapters]
-blocked_by: [0003]
+dependencies: [0003]
 created: 2026-10-19
-updated: 2026-10-19
 ---
 
 ## Context

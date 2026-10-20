@@ -1,13 +1,11 @@
 ---
 id: 0007
 title: Distribution — single-file publish, Docker, desktop shell
-status: todo
+status: pending
 priority: medium
-assignee: elopez
 labels: [packaging, distribution, desktop]
-blocked_by: [0001]
+dependencies: [0001]
 created: 2026-10-19
-updated: 2026-10-19
 ---
 
 ## Context

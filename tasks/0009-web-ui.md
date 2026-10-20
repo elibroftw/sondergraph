@@ -1,13 +1,11 @@
 ---
 id: 0009
 title: Svelte web UI shell with mass contact view
-status: todo
+status: pending
 priority: high
-assignee: elopez
 labels: [ui, svelte, frontend]
-blocked_by: [0001]
+dependencies: [0001]
 created: 2026-10-19
-updated: 2026-10-19
 ---
 
 ## Context

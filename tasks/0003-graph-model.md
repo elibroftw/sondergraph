@@ -1,13 +1,11 @@
 ---
 id: 0003
 title: Person graph model and on-disk format
-status: todo
+status: pending
 priority: critical
-assignee: elopez
 labels: [core, data-model]
-blocked_by: [0001, 0002]
+dependencies: [0001, 0002]
 created: 2026-10-19
-updated: 2026-10-19
 ---
 
 ## Context

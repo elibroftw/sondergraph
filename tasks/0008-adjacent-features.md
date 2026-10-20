@@ -1,13 +1,11 @@
 ---
 id: 0008
 title: Adjacent graph features
-status: todo
+status: pending
 priority: low
-assignee: elopez
 labels: [core, graph, features]
-blocked_by: [0003, 0009]
+dependencies: [0003, 0009]
 created: 2026-10-19
-updated: 2026-10-19
 ---
 
 ## Context

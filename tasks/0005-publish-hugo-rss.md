@@ -1,13 +1,11 @@
 ---
 id: 0005
 title: Publish posts to Hugo markdown + RSS
-status: todo
+status: pending
 priority: high
-assignee: elopez
 labels: [publish, hugo, rss]
-blocked_by: [0003, 0004]
+dependencies: [0003, 0004]
 created: 2026-10-19
-updated: 2026-10-19
 ---
 
 ## Context

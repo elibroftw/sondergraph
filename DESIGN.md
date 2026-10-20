@@ -55,7 +55,14 @@ The graph is not a metaphor. It is the data model (§4).
 **Decision: shared core library. The CLI and the backend both reference `Sondergraph.Core`;
 neither calls the other.**
 
-Rationale and the alternatives considered are in §3.
+Rationale and the alternatives considered are in §3; the supporting precedent research is in
+[docs/architecture-precedents.md](./docs/architecture-precedents.md).
+
+**Additionally: the backend is an optional shared host, never a mandatory intermediary.**
+The CLI runs Core in-process and works fully headless. A long-lived server exists for the
+Web UI to attach to, and holds the workspace lock, job state, and file watchers while
+running. This is Podman's hybrid (in-process library for local, REST for remote), not
+Docker's (nothing works without the daemon).
 
 ### 2.2 Proposed solution layout
 
@@ -220,8 +227,19 @@ is well founded: at minimum, the CLI and the API can touch `data/` concurrently.
   unhelpful; this is a cheap place to do better.
 - **Stale lock detection:** if the holding pid is gone, offer to break the lock.
 
-Exact .NET locking primitives (`FileStream` + `FileShare`, cross-platform advisory locks,
-Windows-vs-Unix gotchas) are covered in the addendum.
+Exact .NET locking primitives, their Unix/Windows gotchas, and the local-transport
+conventions are in [docs/architecture-precedents.md](./docs/architecture-precedents.md) §3–4.
+
+**Sharp edges found there, to design around now:**
+
+- On Unix, only `FileShare.None` is meaningful — every other share value permits multiple
+  writers.
+- `File.Move` / `File.Delete` ignore advisory locks on Unix, so a lock *path* can be swapped.
+  Lock a stable file, or re-stat the fd after acquiring.
+- `FileStream.Lock` is unsupported on macOS.
+- Prefer flock on an open fd over lockfile existence: the OS releases it on death, so a crash
+  cannot leave a stale lock. This is a deliberate improvement on git's `index.lock`.
+- Never hold the lock across user interaction — a GUI modal holding the lock hangs every CLI.
 
 ---
 
@@ -295,14 +313,33 @@ Three targets, in priority order:
 1. **Local dev** — `dotnet run` + `pnpm dev`.
 2. **Docker** — `docker run` with a mounted workspace volume. Note the volume-mount
    requirements for locking (§5) to work correctly across the container boundary.
-3. **Desktop** — a shell (Tauri or equivalent) wrapping the Svelte UI and supervising the
-   .NET backend as a sidecar. See addendum §B for size/runtime tradeoffs.
+3. **Desktop** — **Photino.NET**, which opens the window and hosts Kestrel in the *same*
+   process. This eliminates the entire sidecar-lifecycle problem class (orphaned backends,
+   handshake races, nested-binary codesigning on macOS) rather than solving it. Tauri is the
+   runner-up if the bundler/updater ecosystem is wanted; its caveats are documented in
+   [docs/architecture-precedents.md](./docs/architecture-precedents.md) §6.
 
-**On "force the user to install the .NET runtime":** this is a reasonable call to avoid
-shipping a ~70 MB self-contained bundle, but it is a real conversion cost for desktop
-users. The addendum weighs self-contained vs framework-dependent, and AOT's
-compatibility with ASP.NET Core minimal APIs and `System.Text.Json` — AOT in particular
-has real constraints worth confirming before committing.
+**On the .NET runtime dependency — reversed from the original plan.** The intent was to
+require users to install the runtime and avoid a large download. The evidence says ship
+**self-contained single-file** (~80–110 MB, ~150–300 ms cold start) instead:
+
+- Framework-dependent pushes an install step onto users and creates an ARM64-vs-x64 runtime
+  choice on macOS/Linux — a class of "works on my machine" support tickets.
+- The Svelte bundle is negligible (100–500 KB gzipped). The runtime decides the bundle size,
+  not the UI.
+- The real cost: self-contained does **not** roll forward to .NET security patches, so we
+  must ship patch releases. That is the trade being made, deliberately.
+
+**Native AOT is deferred.** It would need source-gen JSON, no EF Core (officially
+experimental under AOT), no SPA middleware, and no reflection-based DI. That is a lot of
+discipline for a desktop app. Keep it as a separately-tested headless "server profile" if
+CI/container size ever matters.
+
+**Verified on .NET 10.0.400, not assumed:** `ListenLocalhost(0)` *throws*
+(`Dynamic port binding is not supported when binding to localhost`); the working pattern is
+`Listen(IPAddress.Loopback, 0)` then read `IServerAddressesFeature` after `StartAsync`.
+Local IPC and the handshake contract are in
+[docs/architecture-precedents.md](./docs/architecture-precedents.md) §3.
 
 ---
 
@@ -311,10 +348,11 @@ has real constraints worth confirming before committing.
 1. **Platform priority.** Which ingest adapters first? This drives the `raw/` schema.
 2. **Graph index format.** `graph.json` vs SQLite. JSON is greppable and diff-friendly;
    SQLite is better for the triangle/decay queries. Possibly: JSON as truth, SQLite as a
-   rebuildable index.
+   rebuildable index. (Locking research leans toward SQLite-for-mutable-state, WAL mode.)
 3. **Person identity resolution.** How much automatic matching, and how much user
    confirmation? Auto-merge that guesses wrong is worse than no auto-merge.
-4. **Desktop shell choice.** Tauri vs Photino vs Blazor Hybrid — pending addendum.
+4. ~~**Desktop shell choice.**~~ **Resolved** — Photino.NET; Tauri as runner-up.
+   See [docs/architecture-precedents.md](./docs/architecture-precedents.md) §6.
 5. **Media handling.** Photos/video from social dumps will dominate storage. Git LFS?
    Gitignore `data/`? (Leaning: `data/` is gitignored, with an opt-in encrypted
    export for backup.)
@@ -322,8 +360,13 @@ has real constraints worth confirming before committing.
 
 ---
 
-## 11. Addenda (pending)
+## 11. Addenda
 
-- **§A — Markdown task-tracker landscape.** Adopt vs build.
-- **§B — CLI/core/backend precedents & local-server conventions.** Auth, ports, IPC,
-  locking primitives, single-file deployment, desktop packaging.
+- **[docs/markdown-trackers.md](./docs/markdown-trackers.md)** — task-tracker landscape.
+  **Outcome: adopt `taskmd`.** The `tasks/` format is now a validated spec, not a convention
+  of ours. Was task 0010.
+- **[docs/architecture-precedents.md](./docs/architecture-precedents.md)** — CLI/core/backend
+  precedents, local IPC and handshake, .NET locking primitives, deployment mode, desktop
+  packaging. Resolved §10 Q4 and reversed §9's runtime decision.
+- **[docs/decisions/](./docs/decisions/)** — ADRs. [0001](./docs/decisions/0001-shared-core-library.md)
+  records the shared-core decision.

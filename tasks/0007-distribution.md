@@ -12,30 +12,44 @@ created: 2026-10-19
 
 DESIGN.md §9. Three targets: local dev, Docker (`docker run`), and a desktop app.
 
-The stated approach is to require the .NET runtime rather than ship a self-contained
-bundle, to avoid a large download. That is a real tradeoff worth confirming with numbers
-before committing, and AOT in particular has known constraints against ASP.NET Core
-minimal APIs and reflection-based `System.Text.Json`.
+**Decisions already taken** (see `docs/architecture-precedents.md` §5-6):
+
+- **Self-contained single-file**, reversing the original "require the .NET runtime" plan.
+  ~80-110 MB, but no install step and no ARM64-vs-x64 runtime confusion. The cost: no
+  roll-forward to .NET security patches, so we must ship patch releases.
+- **Photino.NET** for the desktop shell, which hosts Kestrel in the same process and thus
+  removes the sidecar-lifecycle problem class entirely.
+- **Native AOT deferred** to a separate headless profile.
+
+What remains is execution: produce the builds and verify the numbers on this codebase.
 
 ## Acceptance criteria
 
-- [ ] Decision recorded on framework-dependent vs self-contained vs AOT, with **actual
-      measured** binary sizes and cold-start times for this app (not general claims).
+- [x] Decision recorded on framework-dependent vs self-contained vs AOT.
+- [ ] **Actual measured** binary sizes and cold-start times for this app (published
+      benchmarks are not measurements — we need our own numbers).
 - [ ] Verified whether trimming/AOT breaks minimal APIs, EF Core (if used), or
       `System.Text.Json` in this codebase specifically.
 - [ ] `dotnet publish` produces a single-file CLI binary.
 - [ ] Dockerfile runs the API with `data/` as a mounted volume.
 - [ ] **Locking verified across the container boundary** — file locks behave differently
       through a bind mount and this interacts directly with 0002.
-- [ ] Desktop shell chosen and justified; it supervises the .NET backend as a sidecar.
+- [x] Desktop shell chosen and justified (Photino.NET; in-process host, no sidecar).
+- [ ] Photino.NET shell actually builds and launches the API in-process.
 - [ ] Documented runtime prerequisite, stated plainly in the README.
 
 ## Notes
 
-Desktop shell candidates: Tauri (sidecar mechanism, small bundles), Photino, .NET MAUI
-Blazor Hybrid, WebView2/WKWebView wrappers. The open question is how well each supervises
-and shuts down a .NET sidecar process — orphaned backend processes are the classic failure
-mode here.
+**If Tauri is ever revisited** (e.g. we want its updater/plugin ecosystem), these are the
+known traps from the research: sidecars are copied next to the main exe with the
+`-<target-triple>` suffix stripped; resolution is relative to `current_exe()`, not the
+config file; **killing sidecars on exit is not automatic** (the classic orphaned-backend
+bug); and every executable in a macOS `Contents/MacOS/` must be signed and notarized —
+test notarization early, not the week before release.
 
 The Docker + locking interaction is the subtle one. Verify it early; discovering a
-locking bug only in the container path is expensive.
+locking bug only in the container path is expensive. Note also that flock is unreliable on
+network filesystems, which includes some Docker volume drivers on macOS/Windows.
+
+Linux WebKitGTK (`libwebkit2gtk-4.1`) is a real package dependency and the main Linux
+packaging risk for Photino. Budget time for it.

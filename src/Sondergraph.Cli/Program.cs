@@ -25,6 +25,10 @@ public static class Program
             "--version" or "-v" => PrintVersion(),
             "--help" or "-h" => PrintUsage(),
             "init" => WorkspaceCommands.Init(args),
+            "ingest" => DispatchIngest(args),
+            "list" or "ls" => PersonCommands.List(args),
+            "show" => PersonCommands.Show(args),
+            "stats" => PersonCommands.Stats(args),
             "workspace" or "ws" => DispatchWorkspace(args),
             var unknown => Unknown(unknown),
         };
@@ -34,6 +38,24 @@ public static class Program
     {
         Console.WriteLine($"sg {SondergraphVersion.Version} (protocol {SondergraphVersion.Protocol})");
         return ExitCode.Success;
+    }
+
+    private static int DispatchIngest(string[] args)
+    {
+        // sg ingest parse <path>
+        if (args.Length < 2)
+        {
+            Console.Error.WriteLine("sg: 'ingest' needs a subcommand.");
+            Console.Error.WriteLine("sg: available: parse");
+            return ExitCode.Usage;
+        }
+
+        return args[1] switch
+        {
+            "parse" or "import" => IngestCommands.Parse(args),
+            "platforms" => IngestCommands.ListPlatforms(),
+            var unknown => Unknown($"ingest {unknown}"),
+        };
     }
 
     private static int DispatchWorkspace(string[] args)
@@ -71,12 +93,20 @@ public static class Program
         Console.WriteLine("  workspace status       Show the workspace and its lock state.");
         Console.WriteLine("  workspace lock         Show details of the current lock holder.");
         Console.WriteLine();
+        Console.WriteLine("Contacts:");
+        Console.WriteLine("  list [path]            List every person, sorted by name.");
+        Console.WriteLine("  show <id|name>         Show one person in detail.");
+        Console.WriteLine("  stats                  Summarise the contact graph.");
+        Console.WriteLine();
+        Console.WriteLine("Ingest:");
+        Console.WriteLine("  ingest parse <path>    Read an export and materialise people.");
+        Console.WriteLine("  ingest platforms       List the parsers in this build.");
+        Console.WriteLine();
         Console.WriteLine("Options:");
         Console.WriteLine("  -h, --help             Show this help.");
         Console.WriteLine("  -v, --version          Show version.");
         Console.WriteLine();
-        Console.WriteLine("Commands for contacts, ingestion and publishing are not implemented yet;");
-        Console.WriteLine("see tasks/ for the backlog.");
+        Console.WriteLine("Publishing (Hugo + RSS) is not implemented yet; see tasks/ for the backlog.");
         return ExitCode.Success;
     }
 }

@@ -34,6 +34,15 @@ public sealed class InstagramParser : IPlatformParser
     /// <inheritdoc />
     public int ParserVersion => 1;
 
+    /// <summary>
+    /// Prefix Instagram uses for deactivated or erased accounts.
+    /// </summary>
+    /// <remarks>
+    /// Observed in a real export as 8 records out of ~1,976. Unexported in any documentation;
+    /// found by looking at the rendered contact list.
+    /// </remarks>
+    private const string DeletedPlaceholder = "__deleted__";
+
     /// <summary>Files to read, mapped to what the relationship means.</summary>
     private static readonly Dictionary<string, InteractionKind> RelationFiles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -304,6 +313,15 @@ public sealed class InstagramParser : IPlatformParser
         timestamp ??= GetLong(element, "timestamp");
 
         if (string.IsNullOrWhiteSpace(handle))
+        {
+            return null;
+        }
+
+        // Instagram writes "__deleted__<hash>" for deactivated or erased accounts. These are
+        // tombstones, not identities: the user cannot know or contact them, and importing
+        // them puts entries like "__deleted__bhiebeabicjfigbee" into the contact list, which
+        // is visibly wrong in the UI and inflates every count.
+        if (handle.TrimStart().StartsWith(DeletedPlaceholder, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }

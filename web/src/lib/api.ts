@@ -1,0 +1,140 @@
+// Typed client for the sondergraph API.
+//
+// All requests are relative, so the same code works when the UI is served by the API (the
+// normal case) and when it is proxied during development. No base URL, no CORS.
+
+/** How a person is summarised in the list view. */
+export interface AccountSummary {
+  platform: string
+  handle: string
+  displayName: string | null
+  profileUrl: string | null
+}
+
+export interface LocationSummary {
+  place: string
+  kind: string
+  note: string | null
+}
+
+export interface PersonSummary {
+  id: string
+  name: string
+  tier: string
+  tierLabel: string
+  phones: string[]
+  emails: string[]
+  locations: LocationSummary[]
+  accounts: AccountSummary[]
+  sources: string[]
+  tags: string[]
+  noteCount: number
+}
+
+export interface PersonDetail extends PersonSummary {
+  aliases: string[]
+  notes: { fileName: string; body: string }[]
+}
+
+export interface Stats {
+  people: number
+  withPhone: number
+  withEmail: number
+  withLocation: number
+  withNotes: number
+  multiSource: number
+  platforms: Record<string, number>
+  sources: Record<string, number>
+  tiers: Record<string, number>
+}
+
+export interface WorkspaceState {
+  ok: boolean
+  root: string | null
+  data: string | null
+  error: string | null
+  hint: string | null
+}
+
+export interface Health {
+  status: string
+  version: string
+  protocol: number
+  workspace: WorkspaceState
+}
+
+export interface DuplicateGroup {
+  name: string
+  people: PersonSummary[]
+}
+
+export interface PersonPage {
+  total: number
+  returned: number
+  people: PersonSummary[]
+}
+
+/** An error carrying the server's structured code, not just a message. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+    readonly hint: string | null,
+    readonly status: number,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+}
+
+async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(path, { signal })
+
+  if (!response.ok) {
+    // The API returns { error, hint, code } for failures. Falling back to the status text
+    // keeps the UI from showing "undefined" when something upstream returns plain HTML.
+    let body: { error?: string; hint?: string; code?: string } = {}
+
+    try {
+      body = await response.json()
+    } catch {
+      // Not JSON; the status text is all we have.
+    }
+
+    throw new ApiError(
+      body.error ?? response.statusText ?? 'Request failed',
+      body.code ?? 'Unknown',
+      body.hint ?? null,
+      response.status,
+    )
+  }
+
+  return (await response.json()) as T
+}
+
+export const api = {
+  health: (signal?: AbortSignal) => request<Health>('/api/health', signal),
+
+  stats: (signal?: AbortSignal) => request<Stats>('/api/stats', signal),
+
+  people: (query: string, tier: string, signal?: AbortSignal) => {
+    const params = new URLSearchParams()
+
+    if (query.trim()) {
+      params.set('q', query.trim())
+    }
+
+    if (tier && tier !== 'all') {
+      params.set('tier', tier)
+    }
+
+    const suffix = params.toString()
+    return request<PersonPage>(`/api/people${suffix ? `?${suffix}` : ''}`, signal)
+  },
+
+  person: (id: string, signal?: AbortSignal) =>
+    request<PersonDetail>(`/api/people/${encodeURIComponent(id)}`, signal),
+
+  duplicates: (signal?: AbortSignal) =>
+    request<{ groups: number; duplicates: DuplicateGroup[] }>('/api/duplicates', signal),
+}

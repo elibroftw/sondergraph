@@ -343,27 +343,11 @@ public static class PersonDocument
         return locations;
     }
 
-    /// <summary>Wire form for a tier. Stable; changing these is a breaking change.</summary>
-    public static string TierToWire(ContactTier tier) => tier switch
-    {
-        ContactTier.Acquaintance => "acquaintance",
-        ContactTier.Friend => "friend",
-        ContactTier.Close => "close",
-        ContactTier.Best => "best",
-        ContactTier.Family => "family",
-        _ => "unknown",
-    };
+    /// <summary>Wire form for a tier. Delegates to Core so there is one mapping.</summary>
+    public static string TierToWire(ContactTier tier) => ContactTierNames.ToWire(tier);
 
-    /// <summary>Parses a wire-form tier, defaulting to <see cref="ContactTier.Unknown"/>.</summary>
-    public static ContactTier ParseTier(string? value) => value?.Trim().ToLowerInvariant() switch
-    {
-        "acquaintance" => ContactTier.Acquaintance,
-        "friend" => ContactTier.Friend,
-        "close" => ContactTier.Close,
-        "best" => ContactTier.Best,
-        "family" => ContactTier.Family,
-        _ => ContactTier.Unknown,
-    };
+    /// <summary>Parses a wire-form tier. Delegates to Core so there is one mapping.</summary>
+    public static ContactTier ParseTier(string? value) => ContactTierNames.Parse(value);
 
     /// <summary>Wire form for a location kind.</summary>
     public static string LocationToWire(LocationKind kind) => kind switch
@@ -381,18 +365,8 @@ public static class PersonDocument
         _ => LocationKind.Other,
     };
 
-    /// <summary>
-    /// Formats a tier for display in the terminal and UI.
-    /// </summary>
-    public static string DescribeTier(ContactTier tier) => tier switch
-    {
-        ContactTier.Acquaintance => "acquaintance",
-        ContactTier.Friend => "friend",
-        ContactTier.Close => "close friend",
-        ContactTier.Best => "best friend",
-        ContactTier.Family => "family",
-        _ => "-",
-    };
+    /// <summary>Formats a tier for display.</summary>
+    public static string DescribeTier(ContactTier tier) => ContactTierNames.ToLabel(tier);
 
     /// <summary>Parses a tier from user input, accepting common synonyms.</summary>
     public static bool TryParseTierInput(string? input, out ContactTier tier)

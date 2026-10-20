@@ -173,7 +173,12 @@ public static class SondergraphEndpoints
     /// Phone search matches on digits, so "555 0100" and "5550100" both find the same person.
     /// </para>
     /// </remarks>
-    private static IResult ListPeople(WorkspaceProvider provider, string? q, string? tier, int? limit)
+    private static IResult ListPeople(
+        WorkspaceProvider provider,
+        string? q,
+        string? tier,
+        string? platform,
+        int? limit)
     {
         var store = provider.Store();
 
@@ -191,24 +196,28 @@ public static class SondergraphEndpoints
 
         IEnumerable<Person> people = loaded.ValueOrThrow();
 
-        if (!string.IsNullOrWhiteSpace(q))
-        {
-            var needle = q.Trim();
-            var digits = Person.DigitsOnly(needle);
-
-            people = people.Where(p => p.AllIdentifiers().Any(i =>
-                i.Contains(needle, StringComparison.OrdinalIgnoreCase)
-                || (digits.Length >= 3
-                    && Person.DigitsOnly(i).Contains(digits, StringComparison.Ordinal))));
-        }
+        // One parser for the whole filter, so a structured query and the form controls mean
+        // exactly the same thing. The separate `tier` and `platform` parameters are folded
+        // into the query rather than applied afterwards: two filtering paths would eventually
+        // disagree about precedence.
+        var query = SearchQuery.Parse(q);
 
         if (!string.IsNullOrWhiteSpace(tier))
         {
-            people = people.Where(p =>
-                string.Equals(
-                    PersonDocument.TierToWire(p.Tier),
-                    tier.Trim(),
-                    StringComparison.OrdinalIgnoreCase));
+            query = query with { Tiers = [tier.Trim().ToLowerInvariant()] };
+        }
+
+        if (!string.IsNullOrWhiteSpace(platform))
+        {
+            query = query with
+            {
+                Platforms = [.. query.Platforms, SearchQuery.ResolvePlatform(platform)],
+            };
+        }
+
+        if (!query.IsEmpty)
+        {
+            people = people.Where(query.Matches);
         }
 
         // Order by usefulness, not alphabetically.

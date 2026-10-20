@@ -82,6 +82,50 @@ public sealed record PlatformAccount(
 }
 
 /// <summary>
+/// Wire names for <see cref="ContactTier"/>.
+/// </summary>
+/// <remarks>
+/// Lives in Core, next to the enum, so search and the file format share one mapping. A
+/// duplicated copy is exactly the kind of thing that drifts silently: a tier renamed in one
+/// place would make <c>tier:close</c> stop matching while the file still said "close".
+/// </remarks>
+public static class ContactTierNames
+{
+    /// <summary>Serialised name for a tier. Stable; changing one is a data migration.</summary>
+    public static string ToWire(ContactTier tier) => tier switch
+    {
+        ContactTier.Acquaintance => "acquaintance",
+        ContactTier.Friend => "friend",
+        ContactTier.Close => "close",
+        ContactTier.Best => "best",
+        ContactTier.Family => "family",
+        _ => "unknown",
+    };
+
+    /// <summary>Parses a wire name, defaulting to <see cref="ContactTier.Unknown"/>.</summary>
+    public static ContactTier Parse(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        "acquaintance" => ContactTier.Acquaintance,
+        "friend" => ContactTier.Friend,
+        "close" => ContactTier.Close,
+        "best" => ContactTier.Best,
+        "family" => ContactTier.Family,
+        _ => ContactTier.Unknown,
+    };
+
+    /// <summary>Human label, for display.</summary>
+    public static string ToLabel(ContactTier tier) => tier switch
+    {
+        ContactTier.Acquaintance => "acquaintance",
+        ContactTier.Friend => "friend",
+        ContactTier.Close => "close friend",
+        ContactTier.Best => "best friend",
+        ContactTier.Family => "family",
+        _ => "-",
+    };
+}
+
+/// <summary>
 /// One of a contact's locations.
 /// </summary>
 /// <param name="Place">Free-text place name, as the user typed it.</param>

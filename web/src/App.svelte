@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api, ApiError, type Health, type PersonDetail, type PersonSummary, type Stats } from './lib/api'
-  import { initials, people as peopleLabel, platformHue, platformLabel, TIERS, tierLabel } from './lib/format'
+  import { initials, people as peopleLabel, platformHue, platformLabel, resolvePlatform, SOURCES, TIERS } from './lib/format'
   import PersonPanel from './lib/PersonPanel.svelte'
 
   // ---- state -------------------------------------------------------------------------
@@ -12,6 +12,7 @@
 
   let query = $state('')
   let tier = $state('all')
+  let platform = $state('all')
   let selectedId = $state<string | null>(null)
   let selected = $state<PersonDetail | null>(null)
 
@@ -40,7 +41,7 @@
     error = null
 
     try {
-      const page = await api.people(query, tier)
+      const page = await api.people(query, tier, platform)
       contacts = page.people
       total = page.total
     } catch (e) {
@@ -92,8 +93,35 @@
     searchTimer = setTimeout(loadContacts, 180)
   }
 
+  function onPlatformChange(next: string) {
+    platform = next
+    loadContacts()
+  }
+
+  // A smart query can contain its own filters, so the dropdown reflects what the query says.
+  // Showing "All sources" while the query says platform:ig would be actively misleading.
+  const queryPlatform = $derived(
+    (() => {
+      const raw = /\b(?:platform|source|src|sm):("?)([a-z]+)\1/i.exec(query)?.[2]
+      return raw ? resolvePlatform(raw) : undefined
+    })(),
+  )
+  const queryTier = $derived(/\b(?:tier|relationship|rel):("?)([a-z-]+)\1/i.exec(query)?.[2]?.toLowerCase())
+
+  const activeFilters = $derived(
+    [platform !== 'all', tier !== 'all', queryPlatform !== undefined, queryTier !== undefined]
+      .filter(Boolean).length,
+  )
+
   function onTierChange(next: string) {
     tier = next
+    loadContacts()
+  }
+
+  function clearFilters() {
+    query = ''
+    platform = 'all'
+    tier = 'all'
     loadContacts()
   }
 
@@ -146,18 +174,40 @@
         aria-label="Search contacts"
       />
 
-      <div class="tiers" role="tablist" aria-label="Filter by tier">
-        {#each TIERS as option (option.value)}
-          <button
-            role="tab"
-            aria-selected={tier === option.value}
-            class:active={tier === option.value}
-            onclick={() => onTierChange(option.value)}
+      <div class="filters">
+        <label class="source-filter">
+          <span class="visually-hidden">Filter by source</span>
+          <select
+            value={SOURCES.some((o) => o.value === queryPlatform) ? queryPlatform : platform}
+            onchange={(e) => onPlatformChange((e.target as HTMLSelectElement).value)}
+            aria-label="Filter by source"
           >
-            {option.label}
-          </button>
-        {/each}
+            {#each SOURCES as option (option.value)}
+              <option value={option.value}>{option.label}</option>
+            {/each}
+          </select>
+        </label>
+
+        <div class="tiers" role="tablist" aria-label="Filter by tier">
+          {#each TIERS as option (option.value)}
+            <button
+              role="tab"
+              aria-selected={tier === option.value || queryTier === option.value}
+              class:active={tier === option.value || queryTier === option.value}
+              onclick={() => onTierChange(option.value)}
+            >
+              {option.label}
+            </button>
+          {/each}
+        </div>
       </div>
+
+      {#if activeFilters > 0}
+        <div class="query-hints" aria-live="polite">
+          <span class="muted">{activeFilters} filter(s) active</span>
+          <button onclick={clearFilters}>Clear</button>
+        </div>
+      {/if}
     </div>
 
     {#if error}
@@ -170,9 +220,9 @@
           <p class="muted">Loading…</p>
         {:else if contacts.length === 0}
           <p class="muted">
-            {query || tier !== 'all'
+            {query || tier !== 'all' || platform !== 'all'
               ? 'No one matches that filter.'
-              : 'No contacts yet. Import an export with: sg ingest parse &lt;path&gt;'}
+              : 'No contacts yet. Import an export with: sg ingest parse <path>'}
           </p>
         {:else}
           <ul>

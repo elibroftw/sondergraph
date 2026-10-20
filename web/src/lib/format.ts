@@ -41,6 +41,55 @@ export const TIERS = [
   { value: 'unknown', label: 'Unrated' },
 ] as const
 
+/**
+ * Sources offered in the filter dropdown.
+ *
+ * Derived from the data rather than hard-coded where possible, but the short labels belong
+ * here: they are what the user types in a smart query and what the chip shows.
+ */
+export const SOURCES = [
+  { value: 'all', label: 'All sources' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'vcard', label: 'Contacts' },
+  { value: 'signal', label: 'Signal' },
+] as const
+
+/**
+ * Aliases the smart query accepts, mirrored from the server.
+ *
+ * The server is authoritative; this copy exists so the dropdown can reflect a query like
+ * `platform:ig` by highlighting "Instagram" rather than showing blank because "ig" is not a
+ * value the select knows.
+ */
+const PLATFORM_ALIASES: Record<string, string> = {
+  ig: 'instagram',
+  insta: 'instagram',
+  gram: 'instagram',
+  fb: 'facebook',
+  meta: 'facebook',
+  li: 'linkedin',
+  in: 'linkedin',
+  vcf: 'vcard',
+  contacts: 'vcard',
+  google: 'vcard',
+  takeout: 'vcard',
+  bsky: 'bluesky',
+  masto: 'mastodon',
+}
+
+/** Resolves a platform alias to the key used by the dropdown. */
+export function resolvePlatform(value: string): string {
+  const key = value.toLowerCase()
+  return PLATFORM_ALIASES[key] ?? key
+}
+
+/** Whether a source key is one the dropdown can display. */
+export function isKnownSource(platform: string): boolean {
+  return SOURCES.some((s) => s.value === platform.toLowerCase())
+}
+
 export function tierLabel(tier: string): string {
   const found = TIERS.find((t) => t.value === tier)
   return found ? found.label : tier

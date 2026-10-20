@@ -201,7 +201,7 @@ export const api = {
 
   stats: (signal?: AbortSignal) => request<Stats>('/api/stats', signal),
 
-  people: (query: string, tier: string, signal?: AbortSignal) => {
+  people: (query: string, tier: string, platform = 'all', signal?: AbortSignal) => {
     const params = new URLSearchParams()
 
     if (query.trim()) {
@@ -210,6 +210,10 @@ export const api = {
 
     if (tier && tier !== 'all') {
       params.set('tier', tier)
+    }
+
+    if (platform && platform !== 'all') {
+      params.set('platform', platform)
     }
 
     const suffix = params.toString()

@@ -19,9 +19,11 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 //
 // Note: ListenLocalhost(0) throws on .NET 10 - "Dynamic port binding is not supported when
 // binding to localhost" - so this must be Listen(IPAddress.Loopback, 0).
+var requestedPort = ApiOptions.ResolvePort(args, builder.Configuration);
+
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Listen(System.Net.IPAddress.Loopback, ApiOptions.ResolvePort(builder.Configuration));
+    options.Listen(System.Net.IPAddress.Loopback, requestedPort);
 });
 
 // JSON: relaxed escaping so non-ASCII names render readably rather than as \uXXXX. Contact
@@ -37,10 +39,36 @@ builder.Services.AddSingleton<WorkspaceProvider>();
 
 var app = builder.Build();
 
-// Serve the built Svelte app from wwwroot when it exists, so the UI and the API share an
-// origin and no CORS configuration is needed at all (docs/architecture-precedents.md §3).
-app.UseDefaultFiles();
-app.UseStaticFiles();
+// Serve the built Svelte app, so the UI and the API share an origin and no CORS
+// configuration is needed at all (docs/architecture-precedents.md §3).
+//
+// --web-root exists for development: it points at the repository's build output directly, so
+// the desktop shell does not need a copy of wwwroot next to the sidecar. That copy was a
+// manual step which any rebuild silently invalidated - the window then reported "no web UI is
+// built" while the build output was perfectly fine.
+var webRoot = ApiOptions.ResolveWebRoot(args);
+
+if (webRoot is not null)
+{
+    if (!Directory.Exists(webRoot))
+    {
+        Console.Error.WriteLine(
+            $"warning: --web-root '{webRoot}' does not exist; the UI will not be served.");
+    }
+    else
+    {
+        var fileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(
+            Path.GetFullPath(webRoot));
+
+        app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = fileProvider });
+        app.UseStaticFiles(new StaticFileOptions { FileProvider = fileProvider });
+    }
+}
+else
+{
+    app.UseDefaultFiles();
+    app.UseStaticFiles();
+}
 
 app.MapSondergraphEndpoints();
 
@@ -90,13 +118,44 @@ app.Run();
 /// </remarks>
 internal static class ApiOptions
 {
-    internal static int ResolvePort(IConfiguration configuration)
+    /// <summary>
+    /// Resolves the port from <c>--port</c>, then the environment, then configuration.
+    /// </summary>
+    /// <remarks>
+    /// A command-line flag is supported because the desktop shell passes one in development,
+    /// and requiring an environment variable for that would make the shell's behaviour
+    /// depend on how it was launched.
+    /// </remarks>
+    internal static int ResolvePort(string[] args, IConfiguration configuration)
     {
-        var configured = Environment.GetEnvironmentVariable("SONDERGRAPH_PORT")
+        var configured = ValueAfter(args, "--port")
+            ?? Environment.GetEnvironmentVariable("SONDERGRAPH_PORT")
             ?? configuration["port"];
 
         return int.TryParse(configured, out var port) && port is >= 0 and <= 65535
             ? port
             : 0;
+    }
+
+    /// <summary>Resolves an explicit web root from <c>--web-root</c>, if given.</summary>
+    internal static string? ResolveWebRoot(string[] args)
+    {
+        var configured = ValueAfter(args, "--web-root");
+
+        return string.IsNullOrWhiteSpace(configured) ? null : configured;
+    }
+
+    /// <summary>Returns the argument following <paramref name="flag"/>, or null.</summary>
+    private static string? ValueAfter(string[] args, string flag)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], flag, StringComparison.Ordinal))
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
     }
 }

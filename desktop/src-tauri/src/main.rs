@@ -22,6 +22,19 @@ use std::time::{Duration, Instant};
 use serde::Deserialize;
 use tauri::{RunEvent, WebviewUrl, WebviewWindowBuilder};
 
+/// Port used in development, so the window has a stable address.
+///
+/// A release build deliberately uses an ephemeral port: the kernel picks a free one, which
+/// avoids colliding with anything else the user is running. During development a fixed port
+/// is more useful than collision-avoidance, because it means the same URL works in a browser,
+/// in curl, and after a reload - and can be hard-coded in the dev config below.
+#[cfg(debug_assertions)]
+const DEV_PORT: u16 = 15190;
+
+/// URL the window loads in development.
+#[cfg(debug_assertions)]
+const DEV_URL: &str = "http://127.0.0.1:15190/";
+
 /// How long to wait for the backend to report a listening port.
 ///
 /// Generous because a cold start of a self-contained .NET binary reads ~80 MB from disk,
@@ -116,6 +129,30 @@ fn sidecar_path() -> std::path::PathBuf {
     dir.join(name)
 }
 
+/// Locates the built web UI in the repository, for development.
+///
+/// Walks up from this executable looking for `src/Sondergraph.Api/wwwroot`, which is where
+/// `vite build` writes. Returns None when the UI has not been built, so the caller can warn
+/// with the exact command rather than showing a blank window.
+#[cfg(debug_assertions)]
+fn dev_web_root() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let mut directory = exe.parent()?;
+
+    // target/debug -> target -> src-tauri -> desktop -> repo root.
+    for _ in 0..6 {
+        let candidate = directory.join("src").join("Sondergraph.Api").join("wwwroot");
+
+        if candidate.join("index.html").exists() {
+            return Some(candidate);
+        }
+
+        directory = directory.parent()?;
+    }
+
+    None
+}
+
 /// Starts the backend and returns it along with where to point the webview.
 ///
 /// Only the bundled path is implemented. The Tauri shell plugin's `<dev>` fallback was
@@ -135,8 +172,28 @@ fn start_backend() -> Result<(Child, String, Option<String>, bool, Option<String
 
     log_line(&format!("starting sidecar at {}", path.display()));
 
-    let mut child = Command::new(&path)
-        .arg("--handshake")
+    let mut command = Command::new(&path);
+    command.arg("--handshake");
+
+    // In development the backend serves the UI straight out of the repository's build
+    // output, rather than requiring a copy next to the sidecar. That copy was a manual step
+    // that any `cargo build` silently invalidated, which is what produced a window saying
+    // "no web UI is built" while the build directory looked fine.
+    #[cfg(debug_assertions)]
+    {
+        command.arg("--port").arg(DEV_PORT.to_string());
+
+        if let Some(web_root) = dev_web_root() {
+            log_line(&format!("serving the web UI from {}", web_root.display()));
+            command.arg("--web-root").arg(&web_root);
+        } else {
+            log_line(
+                "warning: no built web UI found; run `npm --prefix web run build` in the repo root",
+            );
+        }
+    }
+
+    let mut child = command
         .stdout(Stdio::piped())
         // Inherit stderr so backend warnings reach the terminal when launched from one,
         // instead of vanishing into a pipe nobody reads.
@@ -311,6 +368,10 @@ fn main() {
 
             match start_backend() {
                 Ok((child, url, workspace, workspace_ok, workspace_error)) => {
+                    // The handshake URL is authoritative in release. In development it is
+                    // logged but not used for the window, which loads the fixed dev URL - so
+                    // the value is read either way and only its use differs.
+                    let _ = &url;
                     if let Ok(mut guard) = backend_for_setup.child.lock() {
                         *guard = Some(child);
                     }
@@ -327,9 +388,18 @@ fn main() {
                         ));
                     }
 
-                    let parsed: tauri::Url = url
+                    // In development the address is known ahead of time, so the window can
+                    // be created pointing at the fixed port. The handshake is still awaited
+                    // first, so a window never opens onto a server that failed to start.
+                    #[cfg(debug_assertions)]
+                    let target_url = DEV_URL.to_string();
+
+                    #[cfg(not(debug_assertions))]
+                    let target_url = url;
+
+                    let parsed: tauri::Url = target_url
                         .parse()
-                        .map_err(|e| format!("the backend reported an invalid URL '{url}': {e}"))?;
+                        .map_err(|e| format!("invalid URL '{target_url}': {e}"))?;
 
                     WebviewWindowBuilder::new(app, "main", WebviewUrl::External(parsed))
                         .title("sondergraph")

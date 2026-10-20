@@ -84,6 +84,26 @@ sudo dnf install webkit2gtk4.1-devel libsoup3-devel
 
 ### 3. Build
 
+**Development uses a fixed URL: `http://127.0.0.1:15190/`.**
+
+A debug build passes `--port 15190` and `--web-root <repo>/src/Sondergraph.Api/wwwroot` to the
+sidecar, then opens the window on that fixed address. Two consequences worth knowing:
+
+- The backend serves the UI **straight from the repository's build output**, so no copy of
+  `wwwroot` is needed next to the sidecar. That copy was a manual step which any rebuild
+  silently invalidated — the window then reported "no web UI is built" while the build output
+  was perfectly fine.
+- The port is fixed rather than ephemeral, so the same URL works in a browser, in `curl`, and
+  after reloading.
+
+A release build deliberately keeps the ephemeral port from the handshake: the kernel picks a
+free one, so it cannot collide with anything else the user is running.
+
+If the window shows a startup error, the usual cause is a stale sidecar — the binary is
+published separately from the Rust shell, so `./build-sidecar.sh` must be re-run after any
+backend change.
+
+
 ```bash
 nix develop ./desktop --command bash -c 'cd desktop/src-tauri && cargo build --release'
 ```

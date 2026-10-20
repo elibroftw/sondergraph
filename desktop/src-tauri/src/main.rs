@@ -153,6 +153,47 @@ fn dev_web_root() -> Option<std::path::PathBuf> {
     None
 }
 
+/// Warns when the sidecar is older than the API source it was published from.
+///
+/// The sidecar and this shell are built separately, so a backend change is invisible until
+/// `build-sidecar.sh` is re-run. That produced a genuinely confusing failure: the shell passed
+/// `--port 15190`, a stale binary ignored the unknown flag and bound an ephemeral port, and
+/// the window pointed at nothing. A warning at startup is cheaper than that debugging session.
+#[cfg(debug_assertions)]
+fn warn_if_sidecar_stale(sidecar: &std::path::Path) {
+    let Some(web_root) = dev_web_root() else { return };
+
+    // <repo>/src/Sondergraph.Api/wwwroot -> <repo>/src/Sondergraph.Api
+    let Some(api_dir) = web_root.parent() else { return };
+    let Ok(sidecar_modified) = sidecar.metadata().and_then(|m| m.modified()) else { return };
+
+    // The newest .cs directly in the API project is a good proxy for "the source changed".
+    let mut newest_source: Option<std::time::SystemTime> = None;
+
+    let Ok(entries) = std::fs::read_dir(api_dir) else { return };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if path.extension().and_then(|e| e.to_str()) != Some("cs") {
+            continue;
+        }
+
+        let Ok(modified) = entry.metadata().and_then(|m| m.modified()) else { continue };
+
+        if newest_source.is_none_or(|current| modified > current) {
+            newest_source = Some(modified);
+        }
+    }
+
+    if let Some(newest) = newest_source {
+        if newest > sidecar_modified {
+            log_line("warning: the sidecar is older than the API source.");
+            log_line("warning: re-run desktop/build-sidecar.sh, or the backend may ignore new flags.");
+        }
+    }
+}
+
 /// Starts the backend and returns it along with where to point the webview.
 ///
 /// Only the bundled path is implemented. The Tauri shell plugin's `<dev>` fallback was
@@ -171,6 +212,9 @@ fn start_backend() -> Result<(Child, String, Option<String>, bool, Option<String
     }
 
     log_line(&format!("starting sidecar at {}", path.display()));
+
+    #[cfg(debug_assertions)]
+    warn_if_sidecar_stale(&path);
 
     let mut command = Command::new(&path);
     command.arg("--handshake");

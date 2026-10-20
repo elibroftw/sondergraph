@@ -36,26 +36,48 @@ existing interface; the core is C#.
 
 ### 2.1 Layering: shared core library
 
+**The desktop shell is not a third consumer of `Core`.** It has no reference to Core and no
+FFI surface. It is a webview that talks to the API over the local transport, exactly as a
+browser would. This distinction was previously unclear in this document's diagram, and it
+matters: it is what makes the desktop shell replaceable, and it is why ADR 0002's claim of
+"no FFI surface" holds.
+
 ```
-┌─────────────┐   ┌──────────────┐   ┌─────────────┐
-│  sg (CLI)   │   │  ASP.NET API │   │  Desktop    │
-│             │   │  (localhost) │   │  shell      │
-└──────┬──────┘   └──────┬───────┘   └──────┬──────┘
-       │                 │                  │
-       │                 │  serves the Svelte UI
-       │                 │                  │
-       └────────┬────────┘                  │
-                ▼                           │
-        ┌───────────────┐                   │
-        │ Sondergraph.  │◄──────────────────┘
-        │ Core          │   (desktop shells the same API)
-        └───────┬───────┘
-                ▼
-        ┌───────────────┐
-        │  Workspace    │  data/, tasks/, config
-        │  (on disk)    │
-        └───────────────┘
+   compile-time reference                    runtime transport
+   ══════════════════════                    ═════════════════
+
+  ┌──────────────┐                          ┌──────────────────┐
+  │  sg (CLI)    │─────────┐                │  Desktop shell   │
+  └──────────────┘         │                │  (webview only)  │
+                           │                └────────┬─────────┘
+                           │                         │
+                           │                         │ loopback HTTP
+                           │                         │ or socket/pipe
+                           ▼                         │
+  ┌──────────────┐   ┌───────────────┐               │
+  │  ASP.NET API │──▶│ Sondergraph.  │               │
+  └──────┬───────┘   │ Core          │               │
+         │           └───────┬───────┘               │
+         │ serves Svelte UI  │                       │
+         │ and /api/*        ▼                       │
+         │           ┌───────────────┐               │
+         │           │  Workspace    │               │
+         │           │  data/, tasks/│               │
+         │           └───────────────┘               │
+         │                                           │
+         └───────────────────────────────────────────┘
+              the desktop shell talks ONLY to the API,
+              never to Core, never to the CLI
 ```
+
+Read the arrows carefully — they are of two different kinds, which the previous version of
+this diagram conflated:
+
+| Arrow | Meaning |
+|---|---|
+| CLI → Core, API → Core | **Compile-time reference.** Same solution, in-process calls. |
+| Desktop → API | **Runtime network call.** Loopback HTTP or a socket/pipe. |
+| API → Workspace | Runtime file I/O, intermediated by Core. |
 
 **Decision: shared core library. The CLI and the backend both reference `Sondergraph.Core`;
 neither calls the other.**
@@ -68,6 +90,26 @@ The CLI runs Core in-process and works fully headless. A long-lived server exist
 Web UI to attach to, and holds the workspace lock, job state, and file watchers while
 running. This is Podman's hybrid (in-process library for local, REST for remote), not
 Docker's (nothing works without the daemon).
+
+#### How the desktop shell hosts the API
+
+Two mechanisms, and the choice is independent of the shell framework:
+
+| Mechanism | How | Used by |
+|---|---|---|
+| **In-process host** | The shell's own process starts Kestrel on a background thread. One process total. | **Photino.NET** (our pick) |
+| **Sidecar subprocess** | The shell spawns the API as a child process, reads a handshake line on stdout, then points its webview at the reported URL. Two processes, supervised. | Tauri's `externalBin` |
+
+Both present the *same* HTTP interface to the webview, so the Svelte app cannot tell the
+difference. In-process is preferred because it deletes the sidecar-lifecycle problem class
+(orphaned backends, handshake races, macOS nested-binary codesigning) rather than managing it.
+
+**Critically: the sidecar is the *API server*, not the CLI.** The desktop shell never
+invokes `sg` as a subprocess. Invoking the CLI would mean parsing human-oriented console
+output — the exact failure mode ADR 0001 rejects in its Option C.
+
+**Wording note for future edits:** "sidecar" in these docs always means *the API server
+process*, never the CLI. Where ambiguity is possible, say "API sidecar".
 
 ### 2.2 Proposed solution layout
 
@@ -424,10 +466,13 @@ Three targets, in priority order:
 2. **Docker** — `docker run` with a mounted workspace volume. Note the volume-mount
    requirements for locking (§5) to work correctly across the container boundary.
 3. **Desktop** — **Photino.NET**, which opens the window and hosts Kestrel in the *same*
-   process. This eliminates the entire sidecar-lifecycle problem class (orphaned backends,
-   handshake races, nested-binary codesigning on macOS) rather than solving it. Tauri is the
-   runner-up if the bundler/updater ecosystem is wanted; its caveats are documented in
-   [docs/architecture-precedents.md](./docs/architecture-precedents.md) §6.
+   process. This eliminates the entire API-sidecar-lifecycle problem class (orphaned
+   backends, handshake races, nested-binary codesigning on macOS) rather than solving it.
+   Tauri is the runner-up if the bundler/updater ecosystem is wanted; its caveats are
+   documented in [docs/architecture-precedents.md](./docs/architecture-precedents.md) §6.
+
+   Either way, the desktop shell is a **webview talking to the API**, not a consumer of
+   `Core` and not a caller of the CLI (§2.1).
 
 **On the .NET runtime dependency — reversed from the original plan.** The intent was to
 require users to install the runtime and avoid a large download. The evidence says ship

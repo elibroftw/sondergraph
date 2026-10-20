@@ -59,7 +59,11 @@ Concretely, choosing Rust would change **nothing** about the Tauri integration w
 - the same macOS nested-binary codesigning constraint.
 
 Tauri's advantage over Photino is its bundler, updater, and plugin ecosystem — **not the
-language its sidecar is written in.** Rewriting Core in Rust buys none of that.
+language its API sidecar is written in.** Rewriting Core in Rust buys none of that.
+
+(Note the precise coupling: Tauri supervises the **API server** as a sidecar. It does not
+call the CLI, and neither does anything else. See DESIGN.md §2.1 and the terminology note
+below.)
 
 There is a further irony: our desktop recommendation is **Photino.NET**, which hosts the
 backend *in the same process*. Rust would make that path strictly harder, not easier.
@@ -69,16 +73,25 @@ backend *in the same process*. Rust would make that path strictly harder, not ea
 "Easier to interface with all native platform languages" presumes consumers that do not
 exist. Enumerating the actual callers:
 
-| Consumer | Language-agnostic? |
-|---|---|
-| `sg` CLI | Same repository, same language either way |
-| Local API | Same repository, same language either way |
-| Desktop shell | Subprocess or in-process — language-agnostic |
-| Third parties | **None.** No plugin API, no extension model, no SDK is planned |
+| Consumer | How it reaches us | Language-agnostic? |
+|---|---|---|
+| `sg` CLI | Compile-time reference to Core | Same repository, same language either way |
+| Local API | Compile-time reference to Core | Same repository, same language either way |
+| Desktop shell | **HTTP to the API, over loopback or a socket** | Yes — and it needs no FFI to do it |
+| Third parties | HTTP to the API | **None planned.** No plugin API, no SDK |
 
 The FFI surface is **zero**. This is a personal archival tool, not a platform. Paying a
 real architectural cost for interoperability without a consumer is the definition of
 speculative generality.
+
+**This is the point that makes the "interface with native platform languages" argument
+moot.** The desktop shell — the one component that is not in the same process as Core —
+reaches Core the same way a browser would: over HTTP. It does not link Core, does not
+P/Invoke it, and does not invoke the CLI. There is no interop problem for Rust to solve.
+
+That also means the shell is **replaceable**. Photino.NET today, Tauri tomorrow, a
+Swift/WebKit shim after that — none of them require touching Core, because none of them are
+coupled to it. See DESIGN.md §2.1.
 
 ### Interoperability is already better without FFI
 
@@ -90,6 +103,8 @@ ADR 0001). That is a strictly better interop story than a native shared library:
   per-language binding maintenance.
 - The protocol version is already explicit (`SondergraphVersion.Protocol`), so
   mismatches are detectable.
+- **The desktop shell already demonstrates this.** It is a non-.NET-shaped consumer
+  (a webview running JavaScript) that gets full access without any binding layer.
 
 ### Rust's advantages are real but do not apply
 
@@ -125,6 +140,11 @@ documented runner-up in `docs/architecture-precedents.md` §6, and choosing it d
 require Rust anywhere else.
 
 ## Notes
+
+**Terminology — "sidecar" means the API server process, never the CLI.** This ambiguity
+was raised during review and is worth stating once here so it does not recur. The desktop
+shell may supervise an *API* sidecar (Tauri) or host the API *in-process* (Photino.NET);
+it never spawns `sg`. Where ambiguity is possible in these docs, write "API sidecar".
 
 **This ADR is about the core language, not about forbidding Rust entirely.** Tauri remains
 a legitimate desktop choice, and a measured hot path may be rewritten later. The decision

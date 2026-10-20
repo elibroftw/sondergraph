@@ -47,10 +47,24 @@ public sealed record SearchQuery
     /// <summary>Places the contact must have one of.</summary>
     public IReadOnlyList<string> Places { get; init; } = [];
 
+    /// <summary>Tags the contact must have one of.</summary>
+    public IReadOnlyList<string> Tags { get; init; } = [];
+
+    /// <summary>
+    /// Whether the contact must be reachable (has a phone or email), or must NOT be.
+    /// </summary>
+    /// <remarks>
+    /// A tag can express "elusive", but it cannot express the thing that actually makes
+    /// someone hard to get hold of: no way to contact them. <c>reachable:no</c> is derived
+    /// from the data rather than being a note the user has to remember to keep in sync.
+    /// </remarks>
+    public bool? Reachable { get; init; }
+
     /// <summary>Whether the query constrains anything at all.</summary>
     public bool IsEmpty =>
         Terms.Count == 0 && Platforms.Count == 0 && Tiers.Count == 0
-        && Has.Count == 0 && Places.Count == 0;
+        && Has.Count == 0 && Places.Count == 0 && Tags.Count == 0
+        && Reachable is null;
 
     /// <summary>
     /// Short names users actually type, mapped to platform keys.
@@ -103,6 +117,8 @@ public sealed record SearchQuery
         var tiers = new List<string>();
         var has = new List<string>();
         var places = new List<string>();
+        var tags = new List<string>();
+        bool? reachable = null;
 
         foreach (var token in Tokenise(raw))
         {
@@ -144,6 +160,22 @@ public sealed record SearchQuery
                     places.Add(value);
                     break;
 
+                case "tag" or "label":
+                    tags.Add(value.TrimStart('#'));
+                    break;
+
+                case "reachable" or "contactable":
+                    reachable = value.ToLowerInvariant() switch
+                    {
+                        "yes" or "y" or "true" or "1" => true,
+                        "no" or "n" or "false" or "0" => false,
+                        _ => null,
+                    };
+
+                    // An unparseable value constrains nothing; leaving it null rather than
+                    // guessing keeps the query honest.
+                    break;
+
                 default:
                     // An unknown field is left as text rather than discarded. Dropping it
                     // would silently widen the result, which is worse than a slightly odd
@@ -160,6 +192,8 @@ public sealed record SearchQuery
             Tiers = tiers.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Has = has.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Places = places.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            Tags = tags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            Reachable = reachable,
         };
     }
 
@@ -249,6 +283,23 @@ public sealed record SearchQuery
             };
 
             if (!satisfied)
+            {
+                return false;
+            }
+        }
+
+        if (Tags.Count > 0
+            && !Tags.Any(wanted => person.Tags.Any(have =>
+                have.Contains(wanted, StringComparison.OrdinalIgnoreCase))))
+        {
+            return false;
+        }
+
+        if (Reachable is { } mustBeReachable)
+        {
+            var isReachable = person.Phones.Count > 0 || person.Emails.Count > 0;
+
+            if (isReachable != mustBeReachable)
             {
                 return false;
             }

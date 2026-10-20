@@ -245,6 +245,81 @@ public sealed class SearchQueryTests
     }
 
     [Fact]
+    public void A_tag_is_searchable_as_plain_text()
+    {
+        // The motivating case: marking someone 'elusive' should let you list the elusive
+        // ones. A tag you cannot search for is decoration.
+        var person = Make("Ada", tags: ["elusive"]);
+
+        Assert.True(SearchQuery.Parse("elusive").Matches(person));
+    }
+
+    [Fact]
+    public void A_tag_filter_matches()
+    {
+        Assert.True(SearchQuery.Parse("tag:elusive").Matches(Make("Ada", tags: ["elusive"])));
+        Assert.False(SearchQuery.Parse("tag:elusive").Matches(Make("Ada", tags: ["family"])));
+    }
+
+    [Fact]
+    public void A_tag_filter_accepts_a_leading_hash()
+    {
+        // People write tags with a hash; the parser should not care.
+        Assert.Equal(["elusive"], SearchQuery.Parse("tag:#elusive").Tags);
+    }
+
+    [Fact]
+    public void A_tag_filter_matches_a_substring()
+    {
+        Assert.True(SearchQuery.Parse("tag:elus").Matches(Make("Ada", tags: ["elusive"])));
+    }
+
+    [Theory]
+    [InlineData("reachable:no", false)]
+    [InlineData("reachable:n", false)]
+    [InlineData("reachable:false", false)]
+    public void Reachable_no_selects_uncontactable_people(string query, bool expected)
+    {
+        // Derived from the data rather than a tag the user must keep in sync. Someone with no
+        // phone and no email genuinely cannot be reached, whatever they are labelled.
+        Assert.Equal(expected, SearchQuery.Parse(query).Reachable);
+    }
+
+    [Fact]
+    public void Reachable_no_matches_a_person_with_no_contact_details()
+    {
+        var unreachable = Make("Ada", sources: ["instagram"]);
+
+        Assert.True(SearchQuery.Parse("reachable:no").Matches(unreachable));
+        Assert.False(SearchQuery.Parse("reachable:yes").Matches(unreachable));
+    }
+
+    [Fact]
+    public void Reachable_yes_matches_a_person_with_a_phone()
+    {
+        var reachable = Make("Ada", phones: ["+1 555 0601"]);
+
+        Assert.True(SearchQuery.Parse("reachable:yes").Matches(reachable));
+        Assert.False(SearchQuery.Parse("reachable:no").Matches(reachable));
+    }
+
+    [Fact]
+    public void An_unparseable_reachable_value_constrains_nothing()
+    {
+        // Guessing would be worse than ignoring: 'reachable:maybe' should not filter.
+        Assert.Null(SearchQuery.Parse("reachable:maybe").Reachable);
+    }
+
+    [Fact]
+    public void Tag_and_source_filters_combine()
+    {
+        var person = Make("Ada", sources: ["instagram"], tags: ["elusive"]);
+
+        Assert.True(SearchQuery.Parse("tag:elusive platform:ig").Matches(person));
+        Assert.False(SearchQuery.Parse("tag:elusive platform:fb").Matches(person));
+    }
+
+    [Fact]
     public void An_empty_query_matches_everyone()
     {
         Assert.True(SearchQuery.Parse("").Matches(Make("Anyone")));

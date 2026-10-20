@@ -253,6 +253,13 @@ public sealed record Person
             yield return email;
         }
 
+        // Tags are searchable. A tag you cannot search for is decoration: the point of
+        // marking someone 'elusive' is to be able to list the elusive ones.
+        foreach (var tag in Tags)
+        {
+            yield return tag;
+        }
+
         // Locations are searchable too. Recording that someone lives in Berlin is only
         // useful if "who do I know in Berlin?" then works, and that question is the whole
         // reason to attach a location in the first place.

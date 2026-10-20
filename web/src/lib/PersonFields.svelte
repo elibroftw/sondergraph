@@ -25,11 +25,12 @@
   // Stored as { value, label } so the select can show "WhatsApp" while writing "whatsapp".
   let channels = $state<{ value: string; label: string }[]>([])
   let suggested = $state(false)
-  let adding = $state(false)
-  let newChannel = $state('')
-  let didYouMean = $state<string | null>(null)
+
   let connections = $state<{ value: string; label: string }[]>([])
   let connectionsSuggested = $state(false)
+  // The how-we-met field still accepts free text, so it still needs a near-match notice.
+  // The preferred-channel one was removed with its free-text input.
+  let metDidYouMean = $state<string | null>(null)
   let metInput = $state('')
 
   let tagInput = $state('')
@@ -72,35 +73,19 @@
       if (!value) return
 
       const result = await api.setHowWeMet(personId, value)
-      didYouMean = result.didYouMean
+      metDidYouMean = result.didYouMean
       metInput = ''
 
       if (result.didYouMean) {
-        setTimeout(() => { didYouMean = null }, 8000)
+        setTimeout(() => { metDidYouMean = null }, 8000)
       }
     })
 
+  // The dropdown is the only way to set a channel now, so there is no free-text path and
+  // no typo warning. Channels still come from the server, derived from what is in use.
   const setPreferred = (value: string) => run(async () => {
     await api.setPreferred(personId, value || null)
-    didYouMean = null
   })
-
-  const addChannel = () =>
-    run(async () => {
-      const value = newChannel.trim()
-      if (!value) return
-
-      const result = await api.setPreferred(personId, value)
-      didYouMean = result.didYouMean
-      adding = false
-      newChannel = ''
-
-      // Only keep the flag long enough to read it; the value is already saved, because
-      // blocking a near-match would make a genuinely new channel impossible.
-      if (result.didYouMean) {
-        setTimeout(() => { didYouMean = null }, 8000)
-      }
-    })
 
   // Excludes "all", which is a filter rather than a relationship.
   const choices = TIERS.filter((t) => t.value !== 'all')
@@ -185,54 +170,41 @@
   {#if connectionsSuggested && connections.length > 0}
     <p class="muted hint-line">Suggested until someone records one.</p>
   {/if}
+
+  {#if metDidYouMean}
+    <p class="note-error" role="status">
+      Saved — but “{metDidYouMean}” is already in use. You may have meant that.
+    </p>
+  {/if}
 </section>
 
 <section>
   <h3>Preferred contact</h3>
 
-  {#if adding}
-    <div class="inline-add">
-      <input
-        bind:value={newChannel}
-        placeholder="New channel, e.g. telegram"
-        aria-label="New contact channel"
-        onkeydown={(e) => { if (e.key === 'Enter') addChannel() }}
-      />
-      <button disabled={busy || !newChannel.trim()} onclick={addChannel}>Add</button>
-      <button disabled={busy} onclick={() => { adding = false; newChannel = '' }}>Cancel</button>
-    </div>
-  {:else}
-    <div class="inline-add">
-      <select
-        value={preferred ?? ''}
-        aria-label="Preferred contact channel"
-        onchange={(e) => setPreferred((e.target as HTMLSelectElement).value)}
-        disabled={busy}
-      >
-        <option value="">Not set</option>
-        {#each channels as channel (channel.value)}
-          <option value={channel.value}>{channel.label}</option>
-        {/each}
+  <div class="inline-add">
+    <select
+      value={preferred ?? ''}
+      aria-label="Preferred contact channel"
+      onchange={(e) => setPreferred((e.target as HTMLSelectElement).value)}
+      disabled={busy}
+    >
+      <option value="">Not set</option>
+      {#each channels as channel (channel.value)}
+        <option value={channel.value}>{channel.label}</option>
+      {/each}
 
-        <!-- Keep the current value selectable even if it is no longer in use elsewhere:
-             otherwise the dropdown would silently show "Not set" for a person who has one. -->
-        {#if preferred && !channels.some((c) => c.value === preferred)}
-          <option value={preferred}>{preferred}</option>
-        {/if}
-      </select>
-      <button disabled={busy} onclick={() => (adding = true)}>New…</button>
-    </div>
-  {/if}
+      <!-- Keep the current value selectable even if it is no longer in use elsewhere:
+           otherwise the dropdown would silently show "Not set" for a person who has one. -->
+      {#if preferred && !channels.some((c) => c.value === preferred)}
+        <option value={preferred}>{preferred}</option>
+      {/if}
+    </select>
+  </div>
 
   {#if suggested && channels.length > 0}
     <p class="muted hint-line">Suggested until someone sets one.</p>
   {/if}
 
-  {#if didYouMean}
-    <p class="note-error" role="status">
-      Saved — but “{didYouMean}” is already in use. You may have meant that.
-    </p>
-  {/if}
 </section>
 
 <section>

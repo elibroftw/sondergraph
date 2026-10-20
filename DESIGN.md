@@ -27,7 +27,12 @@ The graph is not a metaphor. It is the data model (§4).
 
 ---
 
-## 2. Architectural decisions (proposed)
+## 2. Architectural decisions
+
+**Language: C# for the core.** Rust was considered and rejected — see
+[ADR 0002](./docs/decisions/0002-csharp-core-not-rust.md). Tauri remains a legitimate
+*desktop shell* choice, and a measured hot path may be written in Rust later behind the
+existing interface; the core is C#.
 
 ### 2.1 Layering: shared core library
 
@@ -477,4 +482,6 @@ Local IPC and the handshake contract are in
   precedents, local IPC and handshake, .NET locking primitives, deployment mode, desktop
   packaging. Resolved §10 Q4 and reversed §9's runtime decision.
 - **[docs/decisions/](./docs/decisions/)** — ADRs. [0001](./docs/decisions/0001-shared-core-library.md)
-  records the shared-core decision.
+  records the shared-core decision; [0002](./docs/decisions/0002-csharp-core-not-rust.md)
+  records the language choice (C#, not Rust) and the conditions under which that is
+  revisited — a measurement or a named external consumer, not a preference.

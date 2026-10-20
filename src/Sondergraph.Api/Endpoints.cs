@@ -71,6 +71,10 @@ public static class SondergraphEndpoints
         // merge feature usable: without it a reviewer would have to know both ids already.
         api.MapGet("/links", ListLinkCandidates);
 
+        // Suggestions for ONE contact, which is what the contact panel needs. The
+        // whole-workspace scan above is still available for the review queue.
+        api.MapGet("/people/{id}/links", PersonLinkCandidates);
+
         // Notes. GET returns the main note (empty when none); PUT replaces it; DELETE
         // removes it. A body is used rather than a query parameter so note text of any
         // length and encoding survives, including newlines.
@@ -740,6 +744,51 @@ public static class SondergraphEndpoints
             howWeMet = ConnectionKinds.Normalise(request.HowWeMet) is { Length: > 0 } v ? v : null,
             label = ConnectionKinds.Display(request.HowWeMet),
             didYouMean = suggestion is null ? null : ConnectionKinds.Display(suggestion),
+        });
+    }
+
+    private static IResult PersonLinkCandidates(WorkspaceProvider provider, string id, double? minScore)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var personStore = store.ValueOrThrow();
+        var person = personStore.Load(id);
+
+        if (!person.IsOk)
+        {
+            return Problem(person.Code, person.Message, person.Hint);
+        }
+
+        var loaded = personStore.ListAll(out _);
+
+        if (!loaded.IsOk)
+        {
+            return Problem(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var candidates = LinkCandidates.ForPerson(
+            person.ValueOrThrow(),
+            loaded.ValueOrThrow(),
+            minScore ?? 0.5);
+
+        return Results.Ok(new
+        {
+            personId = id,
+            total = candidates.Count,
+            candidates = candidates.Select(c => new
+            {
+                id = c.Right.Id,
+                name = c.Right.Name,
+                sources = c.Right.Sources,
+                score = Math.Round(c.Score, 2),
+                evidence = c.Evidence.Select(e => e.Detail),
+                combined = c.PlatformSummary,
+            }),
         });
     }
 

@@ -26,13 +26,6 @@
   let channels = $state<{ value: string; label: string }[]>([])
   let suggested = $state(false)
 
-  let connections = $state<{ value: string; label: string }[]>([])
-  let connectionsSuggested = $state(false)
-  // The how-we-met field still accepts free text, so it still needs a near-match notice.
-  // The preferred-channel one was removed with its free-text input.
-  let metDidYouMean = $state<string | null>(null)
-  let metInput = $state('')
-
   let tagInput = $state('')
   let placeInput = $state('')
   let kindInput = $state('other')
@@ -51,34 +44,29 @@
       })
   })
 
+  // Draft mirrors the saved value; blur and Enter commit it. Unchanged text is not
+  // written, so clicking through contacts does not churn the files.
+  let metDraft = $state('')
+
+  let lastPerson = $state<string | null>(null)
   $effect(() => {
-    api
-      .connections()
-      .then((result) => {
-        connections = result.inUse.map((c) => ({ value: c.value, label: c.label }))
-        connectionsSuggested = result.suggested
-      })
-      .catch(() => {
-        connections = []
-      })
+    if (personId === lastPerson) {
+      return
+    }
+
+    lastPerson = personId
+    metDraft = howWeMet ?? ''
   })
 
-  const setHowWeMet = (value: string) => run(async () => {
-    await api.setHowWeMet(personId, value || null)
-  })
-
-  const addMet = () =>
+  const saveMet = () =>
     run(async () => {
-      const value = metInput.trim()
-      if (!value) return
+      const value = metDraft.trim()
 
-      const result = await api.setHowWeMet(personId, value)
-      metDidYouMean = result.didYouMean
-      metInput = ''
-
-      if (result.didYouMean) {
-        setTimeout(() => { metDidYouMean = null }, 8000)
+      if (value === (howWeMet ?? '')) {
+        return
       }
+
+      await api.setHowWeMet(personId, value || null)
     })
 
   // The dropdown is the only way to set a channel now, so there is no free-text path and
@@ -140,42 +128,27 @@
 <section>
   <h3>How we met</h3>
 
-  <div class="inline-add">
-    <select
-      value={howWeMet ?? ''}
-      aria-label="How you know this person"
-      onchange={(e) => setHowWeMet((e.target as HTMLSelectElement).value)}
-      disabled={busy}
-    >
-      <option value="">Not recorded</option>
-      {#each connections as connection (connection.value)}
-        <option value={connection.value}>{connection.label}</option>
-      {/each}
-
-      <!-- Keep a person's own value selectable even when nobody else shares it. -->
-      {#if howWeMet && !connections.some((c) => c.value === howWeMet)}
-        <option value={howWeMet}>{howWeMet}</option>
-      {/if}
-    </select>
-
-    <input
-      bind:value={metInput}
-      placeholder="Or describe it…"
-      aria-label="Describe how you met"
-      onkeydown={(e) => { if (e.key === 'Enter') addMet() }}
-    />
-    <button disabled={busy || !metInput.trim()} onclick={addMet}>Set</button>
-  </div>
-
-  {#if connectionsSuggested && connections.length > 0}
-    <p class="muted hint-line">Suggested until someone records one.</p>
-  {/if}
-
-  {#if metDidYouMean}
-    <p class="note-error" role="status">
-      Saved — but “{metDidYouMean}” is already in use. You may have meant that.
-    </p>
-  {/if}
+  <!-- Free text, not a dropdown. This is a human description - "Maya's wedding, 2019",
+       "the climbing gym on Bloor" - and a fixed vocabulary forced it into categories it
+       does not fit. Tags already provide the grouping vocabulary for the graph; this field
+       is for the sentence. -->
+  <textarea
+    class="met-input"
+    bind:value={metDraft}
+    rows="2"
+    placeholder="e.g. Met at Maya's wedding in 2019; we worked together at Acme"
+    aria-label="How you met"
+    disabled={busy}
+    onblur={saveMet}
+    onkeydown={(e) => {
+      // Enter saves, Shift+Enter adds a line: a description may span two lines but saving
+      // should not require reaching for the mouse.
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        saveMet()
+      }
+    }}
+  ></textarea>
 </section>
 
 <section>

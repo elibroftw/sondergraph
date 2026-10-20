@@ -62,13 +62,21 @@ public static class ConnectionKinds
     ];
 
     /// <summary>
-    /// Normalises a connection for storage: trimmed, whitespace collapsed, lowercased,
-    /// spaces as hyphens.
+    /// Normalises a description for storage: trimmed, with internal whitespace collapsed
+    /// and line breaks flattened to spaces.
     /// </summary>
     /// <remarks>
-    /// Hyphens rather than spaces so an entry can be typed into a smart query without quoting:
-    /// <c>met:the-climbing-gym</c> and <c>met:"the climbing gym"</c> then mean the same thing.
-    /// Lowercase so "Work" and "work" cannot become two categories in the suggestion list.
+    /// <para>
+    /// This deliberately does NOT slugify. It once produced "the-climbing-gym" from a
+    /// category-style value, which was right when the field was a fixed vocabulary. As a
+    /// human description, slugifying mangles the sentence the user typed: "Met at Maya's
+    /// wedding, 2019" would become "met-at-maya-s-wedding-2019" and read as neither prose
+    /// nor a tag.
+    /// </para>
+    /// <para>
+    /// Case is preserved for the same reason. Matching is case-insensitive wherever it
+    /// matters (search, grouping), so the stored form can stay as the human wrote it.
+    /// </para>
     /// </remarks>
     public static string Normalise(string? value)
     {
@@ -77,32 +85,21 @@ public static class ConnectionKinds
             return string.Empty;
         }
 
-        var parts = value.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries);
-        return string.Join('-', parts).ToLowerInvariant();
-    }
-
-    /// <summary>Human display form, e.g. <c>Work</c>, <c>The Climbing Gym</c>.</summary>
-    public static string Display(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return string.Empty;
-        }
-
-        var normalised = Normalise(value);
-
-        if (DisplayNames.TryGetValue(normalised, out var known))
-        {
-            return known;
-        }
-
-        // Title-case each hyphen-separated part; leave the rest untouched so a specific entry
-        // like "Maya's wedding" keeps its own shape.
+        // Collapse any run of whitespace, including newlines, to a single space. A
+        // description is one line in practice even if entered in a textarea.
         return string.Join(
             ' ',
-            normalised.Split('-').Select(word =>
-                word.Length == 0 ? word : char.ToUpperInvariant(word[0]) + word[1..]));
+            value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
     }
+
+    /// <summary>
+    /// Display form of a description.
+    /// </summary>
+    /// <remarks>
+    /// Returns the stored text as written. There is nothing to prettify now that values are
+    /// prose rather than slugs; capitalising would fight the user's own casing.
+    /// </remarks>
+    public static string Display(string? value) => Normalise(value);
 
     /// <summary>
     /// Derives the connection list from the people who have one.

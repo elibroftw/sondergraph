@@ -304,11 +304,18 @@ public sealed record SearchQuery
             return false;
         }
 
-        if (Met.Count > 0
-            && !Met.Any(wanted => string.Equals(
-                ConnectionKinds.Normalise(person.HowWeMet), wanted, StringComparison.OrdinalIgnoreCase)))
+        // Substring, not equality: "how we met" is prose, so met:wedding should find
+        // "Met at Maya's wedding". Exact matching was right when the field held fixed
+        // categories and would now miss almost every real description.
+        if (Met.Count > 0)
         {
-            return false;
+            var description = ConnectionKinds.Normalise(person.HowWeMet);
+
+            if (!Met.Any(wanted =>
+                description.Contains(wanted, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
         }
 
         if (Reachable is { } mustBeReachable)

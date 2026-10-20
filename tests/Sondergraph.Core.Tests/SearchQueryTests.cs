@@ -320,6 +320,21 @@ public sealed class SearchQueryTests
     }
 
     [Fact]
+    public void A_met_term_matches_part_of_a_description()
+    {
+        // Prose, not a category: met:wedding finds a sentence mentioning a wedding.
+        var person = new Person
+        {
+            Id = "ada",
+            Name = "Ada",
+            HowWeMet = "Met at Maya's wedding in 2019",
+        };
+
+        Assert.True(SearchQuery.Parse("met:wedding").Matches(person));
+        Assert.False(SearchQuery.Parse("met:university").Matches(person));
+    }
+
+    [Fact]
     public void An_empty_query_matches_everyone()
     {
         Assert.True(SearchQuery.Parse("").Matches(Make("Anyone")));

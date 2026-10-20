@@ -328,6 +328,21 @@ export const api = {
       signal,
     ),
 
+  /** Merge suggestions for one contact. Cheap, but still debounced by the caller. */
+  suggestions: (id: string, signal?: AbortSignal) =>
+    request<{
+      personId: string
+      total: number
+      candidates: {
+        id: string
+        name: string
+        sources: string[]
+        score: number
+        evidence: string[]
+        combined: string
+      }[]
+    }>(`/api/people/${encodeURIComponent(id)}/links`, signal),
+
   /** How-you-know-them values in use, derived from the people who have one. */
   connections: (signal?: AbortSignal) =>
     request<ChannelsResponse>('/api/connections', signal),

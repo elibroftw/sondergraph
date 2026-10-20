@@ -1456,3 +1456,29 @@ ul.plain a,
   color: var(--danger);
   background: var(--danger-soft);
 }
+
+/* How-we-met: a description, so it gets room to breathe and wraps like prose. */
+.met-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 56px;
+}
+
+.met-input::placeholder {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.met-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}

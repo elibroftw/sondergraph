@@ -18,17 +18,24 @@ public sealed class ConnectionKindsTests
     };
 
     [Theory]
-    [InlineData("Work", "work")]
     [InlineData("  work  ", "work")]
-    [InlineData("the climbing gym", "the-climbing-gym")]
-    [InlineData("The Climbing Gym", "the-climbing-gym")]
-    [InlineData("the_climbing_gym", "the-climbing-gym")]
-    [InlineData("a  conference", "a-conference")]
-    public void Normalisation_makes_variants_one_entry(string input, string expected)
+    [InlineData("a  conference", "a conference")]
+    [InlineData("Met at Maya's wedding", "Met at Maya's wedding")]
+    [InlineData("Met at Maya's\nwedding", "Met at Maya's wedding")]
+    public void Normalisation_preserves_the_wording(string input, string expected)
     {
-        // Hyphens rather than spaces so the value can be typed into a smart query without
-        // quoting, and lowercase so "Work" cannot become a second category.
+        // This field is a human description, so normalisation tidies whitespace WITHOUT
+        // slugifying. It once produced "met-at-maya-s-wedding", which mangles the sentence
+        // the user typed - right for a category, wrong for prose.
         Assert.Equal(expected, ConnectionKinds.Normalise(input));
+    }
+
+    [Fact]
+    public void Normalisation_keeps_the_users_own_casing()
+    {
+        // Capitalising would fight what the user wrote, and matching is case-insensitive
+        // wherever it matters.
+        Assert.Equal("Met at Maya's wedding", ConnectionKinds.Normalise("Met at Maya's wedding"));
     }
 
     [Theory]
@@ -41,12 +48,12 @@ public sealed class ConnectionKindsTests
     }
 
     [Theory]
-    [InlineData("work", "Work")]
-    [InlineData("university", "University")]
-    [InlineData("the-climbing-gym", "The Climbing Gym")]
-    [InlineData("met-travelling", "Met travelling")]
-    public void Display_is_readable_while_storage_is_normalised(string input, string expected)
+    [InlineData("work", "work")]
+    [InlineData("the climbing gym", "the climbing gym")]
+    [InlineData("Met at Maya's wedding", "Met at Maya's wedding")]
+    public void Display_returns_the_text_as_written(string input, string expected)
     {
+        // Nothing to prettify now that values are prose rather than slugs.
         Assert.Equal(expected, ConnectionKinds.Display(input));
     }
 
@@ -61,6 +68,15 @@ public sealed class ConnectionKindsTests
     }
 
     [Fact]
+    public void Different_descriptions_stay_separate()
+    {
+        // The point of prose: "met at work" and "met at university" are not one entry.
+        var inUse = ConnectionKinds.InUse([With("met at work"), With("met at university", "Bob")]);
+
+        Assert.Equal(2, inUse.Count);
+    }
+
+    [Fact]
     public void A_connection_disappears_when_its_last_user_changes()
     {
         // The mechanism that prevents a typo becoming permanent.
@@ -69,9 +85,9 @@ public sealed class ConnectionKindsTests
     }
 
     [Fact]
-    public void Variants_count_as_one_entry()
+    public void Descriptions_differing_only_in_whitespace_count_as_one()
     {
-        Assert.Equal(["work"], ConnectionKinds.InUse([With("Work"), With("work", "Bob")]));
+        Assert.Single(ConnectionKinds.InUse([With("the climbing gym"), With("the climbing  gym", "Bob")]));
     }
 
     [Fact]

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sondergraph.Api/Sondergraph.Api.csproj" />
+    <Project Path="src/Sondergraph.Cli/Sondergraph.Cli.csproj" />
+    <Project Path="src/Sondergraph.Core/Sondergraph.Core.csproj" />
+    <Project Path="src/Sondergraph.Workspace/Sondergraph.Workspace.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sondergraph.Core.Tests/Sondergraph.Core.Tests.csproj" />
+  </Folder>
+</Solution>

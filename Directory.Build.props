@@ -1,0 +1,30 @@
+<Project>
+
+  <!-- Central build configuration. Every project inherits this. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Treat warnings as errors so the layering rules and analyzer findings
+         are enforced, not merely reported. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+
+    <!-- Deterministic, reviewable builds. -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Version>0.0.1</Version>
+    <Authors>sondergraph contributors</Authors>
+    <Product>sondergraph</Product>
+    <Description>Map the people in your life into a graph you own.</Description>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+</Project>

@@ -80,6 +80,13 @@ public static class SondergraphEndpoints
         api.MapPatch("/people/{id}/tier", PatchTier);
         api.MapPatch("/people/{id}/tags", PatchTags);
         api.MapPatch("/people/{id}/locations", PatchLocations);
+
+        // Merging. POST /api/merges creates one; DELETE reverses it. Both are explicit
+        // verbs on a resource rather than a "merge" flag on a person, so the result has an
+        // id that can be undone.
+        api.MapPost("/merges", CreateMerge);
+        api.MapDelete("/merges/{mergeId}", UndoMerge);
+        api.MapGet("/merges", ListMerges);
     }
 
     /// <summary>
@@ -337,6 +344,8 @@ public static class SondergraphEndpoints
             : Problem(appended.Code, appended.Message, appended.Hint);
     }
 
+    private sealed record MergeRequest(string? Surviving, string? Absorbed, string? Reason);
+
     private sealed record TierRequest(string? Tier);
     private sealed record TagsRequest(List<string>? Add, List<string>? Remove);
     private sealed record LocationRequest(string? Place, string? Kind, string? Note, bool Remove);
@@ -442,6 +451,98 @@ public static class SondergraphEndpoints
                 }),
             })
             : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
+    }
+
+    private static IResult CreateMerge(WorkspaceProvider provider, MergeRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Surviving) || string.IsNullOrWhiteSpace(request.Absorbed))
+        {
+            return Results.Json(
+                new { error = "Both 'surviving' and 'absorbed' ids are required.", code = nameof(ErrorCode.Unknown) },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var store = provider.Store();
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var workspace = provider.Resolve();
+        if (!workspace.IsOk)
+        {
+            return Problem(workspace.Code, workspace.Message, workspace.Hint);
+        }
+
+        var log = MergeLog.Load(workspace.ValueOrThrow().Root);
+        if (!log.IsOk)
+        {
+            return Problem(log.Code, log.Message, log.Hint);
+        }
+
+        var merged = new MergeService(store.ValueOrThrow(), log.ValueOrThrow())
+            .Merge(request.Surviving, request.Absorbed, request.Reason);
+
+        return merged.IsOk
+            ? Results.Ok(new { mergeId = merged.ValueOrThrow().Id })
+            : Problem(merged.Code, merged.Message, merged.Hint);
+    }
+
+    private static IResult UndoMerge(WorkspaceProvider provider, string mergeId)
+    {
+        var store = provider.Store();
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var workspace = provider.Resolve();
+        if (!workspace.IsOk)
+        {
+            return Problem(workspace.Code, workspace.Message, workspace.Hint);
+        }
+
+        var log = MergeLog.Load(workspace.ValueOrThrow().Root);
+        if (!log.IsOk)
+        {
+            return Problem(log.Code, log.Message, log.Hint);
+        }
+
+        var undone = new MergeService(store.ValueOrThrow(), log.ValueOrThrow()).Undo(mergeId);
+
+        return undone.IsOk
+            ? Results.Ok(new { mergeId, undone = true })
+            : Problem(undone.Code, undone.Message, undone.Hint);
+    }
+
+    private static IResult ListMerges(WorkspaceProvider provider)
+    {
+        var workspace = provider.Resolve();
+        if (!workspace.IsOk)
+        {
+            return Problem(workspace.Code, workspace.Message, workspace.Hint);
+        }
+
+        var log = MergeLog.Load(workspace.ValueOrThrow().Root);
+        if (!log.IsOk)
+        {
+            return Problem(log.Code, log.Message, log.Hint);
+        }
+
+        return Results.Ok(new
+        {
+            merges = log.ValueOrThrow().Records
+                .Where(r => r.Reason?.StartsWith("undo:", StringComparison.Ordinal) != true)
+                .Select(r => new
+                {
+                    id = r.Id,
+                    at = r.At,
+                    survivorId = r.SurvivorId,
+                    absorbedId = r.AbsorbedId,
+                    reason = r.Reason,
+                    undone = log.ValueOrThrow().Records.Any(u => u.Reason == $"undo:{r.Id}"),
+                }),
+        });
     }
 
     /// <summary>

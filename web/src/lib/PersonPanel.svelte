@@ -3,6 +3,7 @@
   import { initials, platformHue, platformLabel } from './format'
   import NoteEditor from './NoteEditor.svelte'
   import PersonFields from './PersonFields.svelte'
+  import MergeBox from './MergeBox.svelte'
 
   // `onchanged` lets the parent re-fetch the detail after an edit, so the panel always shows
   // what the server actually stored rather than an optimistic local guess.
@@ -85,6 +86,13 @@
   {/if}
 
   <NoteEditor personId={person.id} personName={person.name} />
+
+  <MergeBox
+    personId={person.id}
+    personName={person.name}
+    sources={person.sources}
+    onmerged={onchanged}
+  />
 
   {#if person.sources.length > 1}
     <section>

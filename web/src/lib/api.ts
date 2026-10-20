@@ -124,6 +124,53 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T
 }
 
+/** POSTs JSON and returns the parsed body. */
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    throw await toError(response)
+  }
+
+  return (await response.json()) as T
+}
+
+/** DELETEs and returns nothing. */
+async function del(path: string): Promise<void> {
+  const response = await fetch(path, { method: 'DELETE' })
+
+  if (!response.ok) {
+    throw await toError(response)
+  }
+}
+
+/**
+ * Decodes the server's structured error shape.
+ *
+ * One helper so every mutation reports the same way; duplicating it invited one endpoint to
+ * surface a bare status instead of the server's message and hint.
+ */
+async function toError(response: Response): Promise<ApiError> {
+  let detail: { error?: string; hint?: string; code?: string } = {}
+
+  try {
+    detail = await response.json()
+  } catch {
+    // Non-JSON; the status text is all we have.
+  }
+
+  return new ApiError(
+    detail.error ?? response.statusText ?? 'Request failed',
+    detail.code ?? 'Unknown',
+    detail.hint ?? null,
+    response.status,
+  )
+}
+
 async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(path, { signal })
 
@@ -226,6 +273,28 @@ export const api = {
     )
     return result.locations
   },
+
+  /** Merges `absorbed` into `surviving`; the survivor keeps its id. */
+  merge: async (surviving: string, absorbed: string): Promise<string> => {
+    const result = await post<{ mergeId: string }>('/api/merges', { surviving, absorbed })
+    return result.mergeId
+  },
+
+  unmerge: async (mergeId: string): Promise<void> => {
+    await del(`/api/merges/${encodeURIComponent(mergeId)}`)
+  },
+
+  merges: (signal?: AbortSignal) =>
+    request<{
+      merges: {
+        id: string
+        at: string
+        survivorId: string
+        absorbedId: string
+        reason: string | null
+        undone: boolean
+      }[]
+    }>('/api/merges', signal),
 
   /** Appends a timestamped entry without replacing anything already written. */
   appendNote: async (id: string, body: string): Promise<void> => {

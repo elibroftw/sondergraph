@@ -677,3 +677,107 @@ ul.plain a:hover {
   opacity: 0.5;
   cursor: default;
 }
+
+/* ── Merge ─────────────────────────────────────────────────────────────────────── */
+
+.merge {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.merge > button {
+  padding: 6px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.merge > button:hover {
+  background: var(--hover);
+  border-style: solid;
+}
+
+.merge-results {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.merge-results li button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.merge-results li button:hover {
+  background: var(--hover);
+}
+
+.merge-results li button.chosen {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.merge-name {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.merge-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.merge-confirm {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+}
+
+.merge-confirm p {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.merge-confirm .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.merge-confirm button {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.merge-confirm button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 550;
+}

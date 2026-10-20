@@ -34,6 +34,16 @@ public sealed class PersonStore
         _workspace = workspace;
     }
 
+    /// <summary>
+    /// How many directories the last <see cref="ListAll"/> skipped because they were merged
+    /// into another person.
+    /// </summary>
+    /// <remarks>
+    /// Exposed for reporting: "1,618 people (12 merged away)" is a more honest count than
+    /// silently dropping them.
+    /// </remarks>
+    public int MergedAwayCount { get; private set; }
+
     /// <summary>Absolute path to the people directory.</summary>
     public string PeopleDirectory => _workspace.PeopleDirectory;
 
@@ -57,6 +67,7 @@ public sealed class PersonStore
     {
         var warningsList = new List<string>();
         var people = new List<Person>();
+        var mergedAway = 0;
 
         if (!Directory.Exists(_workspace.PeopleDirectory))
         {
@@ -70,6 +81,15 @@ public sealed class PersonStore
             var name = Path.GetFileName(directory);
             if (name.StartsWith('.') || name.StartsWith('_'))
             {
+                continue;
+            }
+
+            // Skip people who have been merged into someone else. Their directory is
+            // retained so the merge can be reversed, but they are not separate contacts any
+            // more - showing them would make the merge appear to have done nothing.
+            if (File.Exists(Path.Combine(directory, MergeService.RedirectFileName)))
+            {
+                mergedAway++;
                 continue;
             }
 
@@ -92,6 +112,7 @@ public sealed class PersonStore
         }
 
         warnings = warningsList;
+        MergedAwayCount = mergedAway;
 
         return Result.Ok<IReadOnlyList<Person>>(
             people.OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase).ToList());

@@ -34,6 +34,9 @@ public static class Program
             "tag" or "tags" => EditCommands.Tag(args),
             "locate" or "location" => EditCommands.Locate(args),
             "rename" => EditCommands.Rename(args),
+            "graft" or "merge" => MergeCommands.Graft(args),
+            "ungraft" or "unmerge" => MergeCommands.Ungraft(args),
+            "merges" => MergeCommands.ListMerges(args),
             "workspace" or "ws" => DispatchWorkspace(args),
             var unknown => Unknown(unknown),
         };
@@ -110,6 +113,11 @@ public static class Program
         Console.WriteLine("  tag <person> <tag>     Add a tag (--remove to drop one).");
         Console.WriteLine("  locate <person> <place>  Record a location (--kind home|work|other).");
         Console.WriteLine("  rename <person> <name> Rename, keeping the id.");
+        Console.WriteLine();
+        Console.WriteLine("Merging:");
+        Console.WriteLine("  graft <absorb> <keep>  Merge two contacts into one (the second keeps its id).");
+        Console.WriteLine("  ungraft <merge-id>     Reverse a merge.");
+        Console.WriteLine("  merges                 List recorded merges.");
         Console.WriteLine();
         Console.WriteLine("Ingest:");
         Console.WriteLine("  ingest parse <path>    Read an export and materialise people.");

@@ -38,10 +38,16 @@ internal static class PersonCommands
 
         if (filter is not null)
         {
+            // The digit check must be guarded on a non-empty needle. "any string".Contains("")
+            // is true, so an unguarded call made a text filter match every person — a
+            // silent no-op that looked like the filter was being ignored.
+            var digits = Person.DigitsOnly(filter);
+
             people = people
                 .Where(p => p.AllIdentifiers().Any(i =>
                     i.Contains(filter, StringComparison.OrdinalIgnoreCase)
-                    || Person.DigitsOnly(i).Contains(Person.DigitsOnly(filter), StringComparison.Ordinal)))
+                    || (digits.Length >= 3
+                        && Person.DigitsOnly(i).Contains(digits, StringComparison.Ordinal))))
                 .ToList();
         }
 
@@ -347,14 +353,23 @@ internal static class PersonCommands
     /// <summary>
     /// Locates the workspace, reporting a failure as an exit code.
     /// </summary>
+    /// <summary>
+    /// Locates the workspace from an explicit <c>--workspace</c> flag, or by discovery.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An explicit flag rather than "the last positional argument", which was a real bug:
+    /// <c>sg list amjad</c> treated "amjad" as a directory path, discovered the workspace by
+    /// walking up from it, and silently returned the unfiltered list. Any word is a valid
+    /// relative path, so the ambiguity is unresolvable without a flag.
+    /// </para>
+    /// <para>
+    /// Set <c>$SONDERGRAPH_WORKSPACE</c> to avoid passing the flag on every call.
+    /// </para>
+    /// </remarks>
     private static Workspace? Resolve(string[] args, int minimumArgs, out int error)
     {
-        var path = args.Length > minimumArgs ? args[^1] : null;
-
-        if (path is not null && path.StartsWith('-'))
-        {
-            path = null;
-        }
+        var path = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
 
         var located = Workspace.Locate(path);
 
@@ -370,13 +385,42 @@ internal static class PersonCommands
     }
 
     /// <summary>The positional argument after the subcommand, if any.</summary>
+    /// <summary>
+    /// Returns the first positional argument after the subcommand, skipping flags and their
+    /// values.
+    /// </summary>
+    /// <remarks>
+    /// Flag values must be skipped explicitly: treating <c>--workspace /some/path</c> as a
+    /// filter would search for the path text, which is the same class of bug as the one this
+    /// replaced.
+    /// </remarks>
     private static string? FilterArgument(string[] args)
     {
         for (var i = 1; i < args.Length; i++)
         {
+            if (args[i] is "--workspace" or "-w")
+            {
+                i++; // skip the flag's value
+                continue;
+            }
+
             if (!args[i].StartsWith('-'))
             {
                 return args[i];
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Returns the argument following <paramref name="flag"/>, or null.</summary>
+    private static string? ValueAfter(string[] args, string flag)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], flag, StringComparison.Ordinal))
+            {
+                return args[i + 1];
             }
         }
 

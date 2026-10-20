@@ -3,10 +3,13 @@
     <Project Path="src/Sondergraph.Api/Sondergraph.Api.csproj" />
     <Project Path="src/Sondergraph.Cli/Sondergraph.Cli.csproj" />
     <Project Path="src/Sondergraph.Core/Sondergraph.Core.csproj" />
+    <Project Path="src/Sondergraph.Ingest/Sondergraph.Ingest.csproj" />
+    <Project Path="src/Sondergraph.People/Sondergraph.People.csproj" />
     <Project Path="src/Sondergraph.Workspace/Sondergraph.Workspace.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Sondergraph.Core.Tests/Sondergraph.Core.Tests.csproj" />
+    <Project Path="tests/Sondergraph.Ingest.Tests/Sondergraph.Ingest.Tests.csproj" />
     <Project Path="tests/Sondergraph.Workspace.Tests/Sondergraph.Workspace.Tests.csproj" />
   </Folder>
 </Solution>

@@ -1,0 +1,28 @@
+# build output
+bin/
+obj/
+*.user
+
+# node
+node_modules/
+web/dist/
+.vite/
+
+# .NET
+publish/
+*.nupkg
+
+# sondergraph workspace data — user data, not source.
+# See DESIGN.md §10 open question 5: leaning toward keeping data/ out of git,
+# with an opt-in encrypted export for backup instead.
+data/
+
+# local tooling
+.vs/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# os
+.DS_Store
+Thumbs.db

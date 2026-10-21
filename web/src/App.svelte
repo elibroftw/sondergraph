@@ -5,6 +5,7 @@
   import LinkReview from './lib/LinkReview.svelte'
   import WorkspacePicker from './lib/WorkspacePicker.svelte'
   import PartyView from './lib/PartyView.svelte'
+  import GraphView from './lib/GraphView.svelte'
 
   // ---- state -------------------------------------------------------------------------
 
@@ -23,6 +24,7 @@
 
   let showLinks = $state(false)
   let showGuests = $state(false)
+  let showGraph = $state(false)
   let loading = $state(true)
   let detailLoading = $state(false)
   let error = $state<string | null>(null)
@@ -254,6 +256,8 @@
 
 {#if showGuests}
   <PartyView onclose={() => (showGuests = false)} />
+{:else if showGraph}
+  <GraphView onclose={() => (showGraph = false)} />
 {:else}
 <div class="app">
   <header>
@@ -343,6 +347,7 @@
         </button>
 
         <button class="link-toggle" onclick={() => (showGuests = true)}>Party planner</button>
+        <button class="link-toggle" onclick={() => (showGraph = true)}>Network</button>
       </div>
 
       {#if activeFilters > 0}

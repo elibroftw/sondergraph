@@ -204,6 +204,12 @@ public static class SondergraphEndpoints
         api.MapPatch("/guest-lists/{slug}", PatchGuestList);
         api.MapPatch("/people/{id}/gender", PatchGender);
 
+        // Friendships between contacts, which is what a network view needs. Symmetric:
+        // writing one side writes the other.
+        api.MapPost("/people/{id}/friends", AddFriend);
+        api.MapDelete("/people/{id}/friends", RemoveFriend);
+        api.MapGet("/graph", GetGraph);
+
         // Merging. POST /api/merges creates one; DELETE reverses it. Both are explicit
         // verbs on a resource rather than a "merge" flag on a person, so the result has an
         // id that can be undone.
@@ -246,6 +252,104 @@ public static class SondergraphEndpoints
     private sealed record WorkspaceRequest(string? Path);
 
     private sealed record GenderRequest(string? Gender);
+
+    private sealed record FriendRequest(string? FriendId);
+
+    private static IResult AddFriend(WorkspaceProvider provider, string id, FriendRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.FriendId))
+        {
+            return Results.Json(
+                new { error = "A friendship needs a friend id." },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var changed = new PersonEditor(store.ValueOrThrow()).AddFriend(id, request.FriendId);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        var reloaded = store.ValueOrThrow().Load(id);
+
+        return reloaded.IsOk
+            ? Results.Ok(new { personId = id, friendsWith = reloaded.ValueOrThrow().FriendsWith })
+            : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
+    }
+
+    private static IResult RemoveFriend(WorkspaceProvider provider, string id, string? friendId)
+    {
+        if (string.IsNullOrWhiteSpace(friendId))
+        {
+            return Results.Json(
+                new { error = "A friendship needs a friend id." },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var changed = new PersonEditor(store.ValueOrThrow()).RemoveFriend(id, friendId);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        var reloaded = store.ValueOrThrow().Load(id);
+
+        return reloaded.IsOk
+            ? Results.Ok(new { personId = id, friendsWith = reloaded.ValueOrThrow().FriendsWith })
+            : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
+    }
+
+    private static IResult GetGraph(WorkspaceProvider provider)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var loaded = store.ValueOrThrow().ListAll(out _);
+
+        if (!loaded.IsOk)
+        {
+            return Problem(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var network = FriendGraph.Build(loaded.ValueOrThrow());
+
+        return Results.Ok(new
+        {
+            contacts = network.ContactCount,
+            friendships = network.FriendshipCount,
+            nodes = network.Nodes.Select(n => new
+            {
+                id = n.Id,
+                name = n.Name,
+                isMe = n.IsMe,
+                tier = n.Tier,
+                x = n.X,
+                y = n.Y,
+                degree = n.Degree,
+            }),
+            edges = network.Edges.Select(e => new { from = e.From, to = e.To, cluster = e.Cluster }),
+        });
+    }
 
     private sealed record GuestListRequest(string? Name, string? Notes, List<string>? Members, string? Date, string? Venue);
 

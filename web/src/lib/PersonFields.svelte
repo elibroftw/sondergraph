@@ -10,6 +10,7 @@
     preferred,
     howWeMet,
     gender,
+    friendsWith,
     onchange,
   }: {
     personId: string
@@ -19,8 +20,85 @@
     preferred: string | null
     howWeMet: string | null
     gender: string | null
+    friendsWith: string[]
     onchange: () => void
   } = $props()
+
+  // Friend ids resolved to names, for display. Loaded lazily because the list is only
+  // meaningful once someone has recorded a friendship.
+  let friendNames = $state<Record<string, string>>({})
+  let friendQuery = $state('')
+  let friendMatches = $state<{ id: string; name: string }[]>([])
+  let friendBusy = $state(false)
+  let friendError = $state<string | null>(null)
+
+  $effect(() => {
+    if (friendsWith.length === 0) {
+      friendNames = {}
+      return
+    }
+
+    api
+      .people(friendsWith.join(' '), 'all')
+      .then((page) => {
+        const map: Record<string, string> = {}
+        for (const person of page.people) map[person.id] = person.name
+        friendNames = map
+      })
+      .catch(() => {
+        friendNames = {}
+      })
+  })
+
+  async function searchFriends() {
+    const q = friendQuery.trim()
+
+    if (q.length < 2) {
+      friendMatches = []
+      return
+    }
+
+    try {
+      const page = await api.people(q, 'all')
+      // Exclude the person themselves and anyone already listed.
+      friendMatches = page.people
+        .filter((p) => p.id !== personId && !friendsWith.includes(p.id))
+        .slice(0, 6)
+        .map((p) => ({ id: p.id, name: p.name }))
+    } catch {
+      friendMatches = []
+    }
+  }
+
+  async function linkFriend(id: string) {
+    friendBusy = true
+    friendError = null
+
+    try {
+      await api.addFriend(personId, id)
+      friendQuery = ''
+      friendMatches = []
+      onchange()
+    } catch (e) {
+      friendError = e instanceof ApiError ? e.message : String(e)
+    } finally {
+      friendBusy = false
+    }
+  }
+
+  async function unlinkFriend(id: string) {
+    friendBusy = true
+    friendError = null
+
+    try {
+      await api.removeFriend(personId, id)
+      onchange()
+    } catch (e) {
+      friendError = e instanceof ApiError ? e.message : String(e)
+    } finally {
+      friendBusy = false
+    }
+  }
 
   // Channels come from the server, derived from what people actually use. Nothing is cached
   // here beyond the current render, so a channel disappears as soon as its last user changes.
@@ -166,6 +244,48 @@
       }
     }}
   ></textarea>
+</section>
+
+<section>
+  <h3>Friends with</h3>
+
+  <!-- Friendship is symmetric, so adding here also adds the other person. The list is what
+       makes a network view possible: without edges the graph is only you and everyone. -->
+  <ul class="friends-list">
+    {#each friendsWith as id (id)}
+      <li>
+        <span class="friends-name">{friendNames[id] ?? id}</span>
+        <button disabled={friendBusy} onclick={() => unlinkFriend(id)} aria-label="Unlink {id}">×</button>
+      </li>
+    {/each}
+  </ul>
+
+  {#if friendsWith.length === 0}
+    <p class="muted hint-line">No friends recorded.</p>
+  {/if}
+
+  <div class="inline-add">
+    <input
+      bind:value={friendQuery}
+      placeholder="Link a contact…"
+      aria-label="Search contacts to link as friends"
+      oninput={searchFriends}
+    />
+  </div>
+
+  {#if friendMatches.length > 0}
+    <ul class="friends-matches">
+      {#each friendMatches as match (match.id)}
+        <li>
+          <button disabled={friendBusy} onclick={() => linkFriend(match.id)}>{match.name}</button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+
+  {#if friendError}
+    <p class="note-error" role="alert">{friendError}</p>
+  {/if}
 </section>
 
 <section>

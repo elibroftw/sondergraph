@@ -154,6 +154,85 @@ public sealed class PersonEditor
         return Result.Ok();
     }
 
+    /// <summary>
+    /// Records that two people are friends, on both records.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Friendship is symmetric, so this writes both sides in a single operation. Recording
+    /// only one side would leave the graph dependent on the direction a traversal walked,
+    /// and the two records could disagree with no way to tell which was right.
+    /// </para>
+    /// <para>
+    /// Self-links are refused: a person is not their own friend, and allowing it would put a
+    /// confusing loop in the graph view.
+    /// </para>
+    /// </remarks>
+    public Result AddFriend(string personId, string friendId)
+    {
+        if (string.IsNullOrWhiteSpace(personId) || string.IsNullOrWhiteSpace(friendId))
+        {
+            return Result.Fail(ErrorCode.Unknown, "A friendship needs two people.");
+        }
+
+        if (string.Equals(personId, friendId, StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Fail(ErrorCode.Unknown, "A person cannot be friends with themselves.");
+        }
+
+        var person = _store.Load(personId);
+
+        if (!person.IsOk)
+        {
+            return Result.Fail(person.Code, person.Message, person.Hint);
+        }
+
+        var friend = _store.Load(friendId);
+
+        if (!friend.IsOk)
+        {
+            return Result.Fail(friend.Code, friend.Message, friend.Hint);
+        }
+
+        // Round-trip through Mutate so the workspace lock and file writes stay in one path.
+        var forward = Mutate(personId, p => p with { FriendsWith = Merge(p.FriendsWith, friendId) });
+
+        if (!forward.IsOk)
+        {
+            return forward;
+        }
+
+        return Mutate(friendId, f => f with { FriendsWith = Merge(f.FriendsWith, personId) });
+    }
+
+    /// <summary>Removes a friendship from both records.</summary>
+    public Result RemoveFriend(string personId, string friendId)
+    {
+        if (string.IsNullOrWhiteSpace(personId) || string.IsNullOrWhiteSpace(friendId))
+        {
+            return Result.Fail(ErrorCode.Unknown, "A friendship needs two people.");
+        }
+
+        var removed = Mutate(personId, p => p with
+        {
+            FriendsWith = p.FriendsWith.Where(id => !string.Equals(id, friendId, StringComparison.OrdinalIgnoreCase)).ToList(),
+        });
+
+        if (!removed.IsOk)
+        {
+            return removed;
+        }
+
+        return Mutate(friendId, f => f with
+        {
+            FriendsWith = f.FriendsWith.Where(id => !string.Equals(id, personId, StringComparison.OrdinalIgnoreCase)).ToList(),
+        });
+    }
+
+    /// <summary>Adds an id to a list, keeping order and refusing duplicates.</summary>
+    private static IReadOnlyList<string> Merge(IReadOnlyList<string> ids, string add) =>
+        ids.Contains(add, StringComparer.OrdinalIgnoreCase) ? ids : [.. ids, add];
+
     /// <summary>Records a person's gender, or clears it.</summary>
     /// <remarks>
     /// Trimmed but otherwise preserved exactly: the vocabulary belongs to the user, so "F"

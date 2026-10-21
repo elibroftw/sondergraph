@@ -54,6 +54,21 @@ public sealed record SearchQuery
     public IReadOnlyList<string> Met { get; init; } = [];
 
     /// <summary>
+    /// Gender values to match, or <see cref="GenderUnset"/> for people with none recorded.
+    /// </summary>
+    public IReadOnlyList<string> Genders { get; init; } = [];
+
+    /// <summary>
+    /// The value meaning "no gender recorded".
+    /// </summary>
+    /// <remarks>
+    /// A bare <c>gender:</c> parses to this. It is the form worth supporting: the useful
+    /// question is almost always "who is missing a gender", because that is the work to do,
+    /// whereas filtering by M or F is what tier buttons and guest lists already answer.
+    /// </remarks>
+    public const string GenderUnset = "(unset)";
+
+    /// <summary>
     /// Whether the contact must be reachable (has a phone or email), or must NOT be.
     /// </summary>
     /// <remarks>
@@ -67,7 +82,7 @@ public sealed record SearchQuery
     public bool IsEmpty =>
         Terms.Count == 0 && Platforms.Count == 0 && Tiers.Count == 0
         && Has.Count == 0 && Places.Count == 0 && Tags.Count == 0
-        && Met.Count == 0 && Reachable is null;
+        && Met.Count == 0 && Genders.Count == 0 && Reachable is null;
 
     /// <summary>
     /// Short names users actually type, mapped to platform keys.
@@ -126,14 +141,15 @@ public sealed record SearchQuery
         var places = new List<string>();
         var tags = new List<string>();
         var met = new List<string>();
+        var genders = new List<string>();
         bool? reachable = null;
 
         foreach (var token in Tokenise(raw))
         {
             var separator = token.IndexOf(':', StringComparison.Ordinal);
 
-            // No colon, a leading colon, or a trailing colon: ordinary text.
-            if (separator <= 0 || separator == token.Length - 1)
+            // No colon or a leading colon: ordinary text, never a filter.
+            if (separator <= 0)
             {
                 terms.Add(token);
                 continue;
@@ -144,6 +160,18 @@ public sealed record SearchQuery
 
             if (value.Length == 0)
             {
+                // "gender:" with nothing after it means "no gender recorded", which is the
+                // whole point of the filter. It must be recognised BEFORE the general
+                // trailing-colon fallback, or the token is treated as free text and never
+                // reaches here - which is exactly what happened on the first attempt.
+                if (field is "gender" or "sex")
+                {
+                    genders.Add(GenderUnset);
+                    continue;
+                }
+
+                // A trailing colon on anything else is ordinary text: someone searching for
+                // "platform" or a name containing a colon must still find it.
                 terms.Add(token);
                 continue;
             }
@@ -170,6 +198,15 @@ public sealed record SearchQuery
 
                 case "tag" or "label":
                     tags.Add(value.TrimStart('#'));
+                    break;
+
+                case "gender" or "sex":
+                    genders.Add(value.ToLowerInvariant() switch
+                    {
+                        "unset" or "none" or "unknown" or "blank" or "missing" => GenderUnset,
+                        var other => other,
+                    });
+
                     break;
 
                 case "met" or "via" or "know":
@@ -206,6 +243,7 @@ public sealed record SearchQuery
             Places = places.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Tags = tags.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Met = met.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            Genders = genders.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             Reachable = reachable,
         };
     }
@@ -317,6 +355,22 @@ public sealed record SearchQuery
 
             if (!Met.Any(wanted =>
                 description.Contains(wanted, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+        }
+
+        if (Genders.Count > 0)
+        {
+            var gender = person.Gender?.Trim();
+
+            // A person with no recorded gender matches only the "unset" sentinel; an
+            // explicit value never matches a blank one.
+            var matches = Genders.Any(wanted => wanted == GenderUnset
+                ? string.IsNullOrWhiteSpace(gender)
+                : string.Equals(gender, wanted, StringComparison.OrdinalIgnoreCase));
+
+            if (!matches)
             {
                 return false;
             }

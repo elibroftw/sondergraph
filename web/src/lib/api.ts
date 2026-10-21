@@ -27,6 +27,7 @@ export interface PersonSummary {
   howWeMet: string | null
   howWeMetLabel: string
   gender: string | null
+  friendsWith: string[]
   phones: string[]
   emails: string[]
   locations: LocationSummary[]
@@ -378,6 +379,46 @@ export const api = {
       isWorkspace: boolean
       directories: { name: string; path: string; isWorkspace: boolean }[]
     }>(`/api/workspace/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal),
+
+  /** The friend network: you at the centre, contacts and their friendships. */
+  graph: (signal?: AbortSignal) =>
+    request<{
+      contacts: number
+      friendships: number
+      nodes: {
+        id: string
+        name: string
+        isMe: boolean
+        tier: string
+        x: number
+        y: number
+        degree: number
+      }[]
+      edges: { from: string; to: string; cluster: number }[]
+    }>('/api/graph', signal),
+
+  /** Records a friendship, on both records. */
+  addFriend: async (id: string, friendId: string): Promise<string[]> => {
+    const result = await post<{ friendsWith: string[] }>(
+      `/api/people/${encodeURIComponent(id)}/friends`,
+      { friendId },
+    )
+    return result.friendsWith
+  },
+
+  /** Removes a friendship, from both records. */
+  removeFriend: async (id: string, friendId: string): Promise<string[]> => {
+    const response = await fetch(
+      `/api/people/${encodeURIComponent(id)}/friends?friendId=${encodeURIComponent(friendId)}`,
+      { method: 'DELETE' },
+    )
+
+    if (!response.ok) {
+      throw await toError(response)
+    }
+
+    return ((await response.json()) as { friendsWith: string[] }).friendsWith
+  },
 
   /** Records a person's gender, preserved exactly as typed. */
   setGender: async (id: string, gender: string | null): Promise<void> => {

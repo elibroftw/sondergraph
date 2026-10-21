@@ -287,6 +287,23 @@ public sealed record Person
     public ContactTier Tier { get; init; } = ContactTier.Unknown;
 
     /// <summary>
+    /// Ids of contacts this person is friends with, independent of how you know them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The edges of the social graph: A is friends with B, regardless of which platform
+    /// either was found on. Without these the app models a star - you and everyone you know -
+    /// which says nothing about who knows whom.
+    /// </para>
+    /// <para>
+    /// <b>Friendship is symmetric, and that is enforced on write.</b> Adding A to B's list
+    /// also adds B to A's, so the two records cannot disagree. Storing it on one side only
+    /// would make the graph depend on which direction a traversal happened to walk.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> FriendsWith { get; init; } = [];
+
+    /// <summary>
     /// The person's gender, or null when not recorded.
     /// </summary>
     /// <remarks>

@@ -2091,3 +2091,138 @@ ul.plain a,
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Network graph ────────────────────────────────────────────────────────────── */
+
+.graph-view {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.graph-summary {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.graph-svg {
+  width: 100%;
+  height: min(70vh, 720px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--accent) 6%, transparent), transparent 70%);
+}
+
+/* Widths are in viewBox units, where the whole canvas is 100 across. The first values
+   looked right in isolation and rendered as hairlines at real size, so these are roughly
+   triple. */
+.graph-edge {
+  stroke: color-mix(in srgb, var(--accent) 65%, transparent);
+  stroke-width: 0.7;
+  stroke-linecap: round;
+}
+
+.graph-edge.highlight {
+  stroke: var(--accent-bright);
+  stroke-width: 1.1;
+}
+
+/* Spokes are fainter than friend-to-friend edges: the interesting structure is who knows
+   whom, not that everyone knows you. */
+.graph-spoke {
+  stroke: color-mix(in srgb, var(--border) 90%, transparent);
+  stroke-width: 0.3;
+}
+
+.graph-node {
+  cursor: default;
+}
+
+.graph-node circle.center {
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--accent) 80%, transparent));
+}
+
+.graph-label {
+  font-family: var(--font-body);
+  font-size: 2.4px;
+  fill: var(--text);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.graph-empty {
+  padding: 32px 20px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.graph-legend {
+  margin-top: 10px;
+  font-size: 13px;
+  max-width: 70ch;
+}
+
+/* ── Friends with ─────────────────────────────────────────────────────────────── */
+
+.friends-list {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.friends-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.friends-name {
+  flex: 1;
+}
+
+.friends-list button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 999px;
+}
+
+.friends-list button:hover {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.friends-matches {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.friends-matches button {
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.friends-matches button:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}

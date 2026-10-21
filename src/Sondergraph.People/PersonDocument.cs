@@ -58,6 +58,8 @@ public static class PersonDocument
             output.Append("met: ").Append(Yaml.Scalar(person.HowWeMet)).Append('\n');
         }
 
+        Yaml.WriteList(output, "friendsWith", person.FriendsWith);
+
         // Omitted when unset, since most contacts will never have one recorded.
         if (!string.IsNullOrWhiteSpace(person.Gender))
         {
@@ -186,6 +188,7 @@ public static class PersonDocument
                 ? met
                 : null,
             // Preserved exactly as typed: the user decides the vocabulary.
+            FriendsWith = lists.GetValueOrDefault("friendsWith", []),
             Gender = scalars.GetValueOrDefault("gender") is { Length: > 0 } rawGender
                 && Yaml.Unquote(rawGender) is { Length: > 0 } gender
                 ? gender

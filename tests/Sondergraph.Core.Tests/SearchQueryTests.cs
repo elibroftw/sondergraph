@@ -345,6 +345,64 @@ public sealed class SearchQueryTests
     }
 
     [Fact]
+    public void A_bare_gender_filter_selects_people_with_nothing_recorded()
+    {
+        // The form worth supporting: the useful question is who is MISSING a gender, because
+        // that is the work left to do.
+        var query = SearchQuery.Parse("gender:");
+
+        Assert.Equal([SearchQuery.GenderUnset], query.Genders);
+        Assert.True(query.Matches(Make("Ada")));
+        Assert.False(query.Matches(Make("Ada") with { Gender = "F" }));
+    }
+
+    [Theory]
+    [InlineData("gender:unset")]
+    [InlineData("gender:none")]
+    [InlineData("gender:unknown")]
+    [InlineData("gender:missing")]
+    public void The_unset_sentinel_has_synonyms(string input)
+    {
+        Assert.Equal([SearchQuery.GenderUnset], SearchQuery.Parse(input).Genders);
+    }
+
+    [Fact]
+    public void A_gender_value_matches_only_that_value()
+    {
+        var query = SearchQuery.Parse("gender:F");
+
+        Assert.True(query.Matches(Make("Ada") with { Gender = "F" }));
+        Assert.False(query.Matches(Make("Ada") with { Gender = "M" }));
+        Assert.False(query.Matches(Make("Ada")));
+    }
+
+    [Fact]
+    public void A_gender_value_is_case_insensitive()
+    {
+        Assert.True(SearchQuery.Parse("gender:f").Matches(Make("Ada") with { Gender = "F" }));
+    }
+
+    [Fact]
+    public void A_trailing_colon_on_other_fields_is_still_ordinary_text()
+    {
+        // The general rule must survive: a user typing "platform" or a name containing a
+        // colon should not get an empty list because it looked like a filter.
+        var query = SearchQuery.Parse("platform:");
+
+        Assert.Empty(query.Platforms);
+        Assert.Contains("platform:", query.Terms);
+    }
+
+    [Fact]
+    public void Gender_filters_combine_with_others()
+    {
+        var person = Make("Ada", sources: ["instagram"]);
+
+        Assert.True(SearchQuery.Parse("gender: platform:ig").Matches(person));
+        Assert.False(SearchQuery.Parse("gender: platform:fb").Matches(person));
+    }
+
+    [Fact]
     public void An_empty_query_matches_everyone()
     {
         Assert.True(SearchQuery.Parse("").Matches(Make("Anyone")));

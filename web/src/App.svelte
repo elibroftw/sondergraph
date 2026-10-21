@@ -259,7 +259,7 @@
   <header>
     <div class="brand">
       <h1>sondergraph</h1>
-      <p class="tagline">everyone all at once</p>
+      <p class="tagline">everyone, all at once</p>
     </div>
 
     <WorkspacePicker

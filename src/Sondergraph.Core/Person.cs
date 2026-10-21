@@ -148,6 +148,22 @@ public static class Reachability
     }
 }
 
+/// <summary>What kind of entry a record is.</summary>
+public enum ContactKind
+{
+    /// <summary>A person, the default.</summary>
+    Person = 0,
+
+    /// <summary>A business: a shop, a gym, a service.</summary>
+    Business = 1,
+
+    /// <summary>A place: a home, an office, a building.</summary>
+    Place = 2,
+
+    /// <summary>Some other non-person: a charity, a club, a supplier.</summary>
+    Organisation = 3,
+}
+
 /// <summary>
 /// The order relationships sort in, closest first.
 /// </summary>
@@ -285,6 +301,27 @@ public sealed record Person
 
     /// <summary>How close this contact is.</summary>
     public ContactTier Tier { get; init; } = ContactTier.Unknown;
+
+    /// <summary>
+    /// What kind of entry this is: a person, a business, or a place.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A business or a place is not a contact in the social sense but is often something the
+    /// user needs to keep: a gym, a landlord, an accountant, the building they live in. In
+    /// this workspace fifteen such records were tagged "delete" because there was no better
+    /// way to say what they were.
+    /// </para>
+    /// <para>
+    /// A separate field rather than a tag because it changes how a record should be treated -
+    /// excluded from guest lists, party suggestions and the friend network, but kept and
+    /// still findable. A tag cannot carry that meaning.
+    /// </para>
+    /// </remarks>
+    public ContactKind Kind { get; init; } = ContactKind.Person;
+
+    /// <summary>Whether this is a person rather than an organisation or place.</summary>
+    public bool IsPerson => Kind == ContactKind.Person;
 
     /// <summary>
     /// Whether the user has decided this is not a contact.

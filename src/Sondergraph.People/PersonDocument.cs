@@ -58,6 +58,12 @@ public static class PersonDocument
             output.Append("met: ").Append(Yaml.Scalar(person.HowWeMet)).Append('\n');
         }
 
+        // Written only when it is not the default, so ordinary records stay clean.
+        if (person.Kind != ContactKind.Person)
+        {
+            output.Append("kind: ").Append(KindToWire(person.Kind)).Append('\n');
+        }
+
         // Written only when set, so ordinary records stay clean.
         if (person.NotAContact)
         {
@@ -195,6 +201,7 @@ public static class PersonDocument
                 : null,
             // Preserved exactly as typed: the user decides the vocabulary.
             FriendsWith = lists.GetValueOrDefault("friendsWith", []),
+            Kind = ParseKind(scalars.GetValueOrDefault("kind")),
             NotAContact = string.Equals(
                 scalars.GetValueOrDefault("notAContact")?.Trim(),
                 "true",
@@ -394,6 +401,33 @@ public static class PersonDocument
         Flush();
         return locations;
     }
+
+    /// <summary>Serialised name for a contact kind.</summary>
+    public static string KindToWire(ContactKind kind) => kind switch
+    {
+        ContactKind.Business => "business",
+        ContactKind.Place => "place",
+        ContactKind.Organisation => "organisation",
+        _ => "person",
+    };
+
+    /// <summary>Parses a contact kind, defaulting to <see cref="ContactKind.Person"/>.</summary>
+    public static ContactKind ParseKind(string? value) => value?.Trim().ToLowerInvariant() switch
+    {
+        "business" or "biz" => ContactKind.Business,
+        "place" or "location" => ContactKind.Place,
+        "organisation" or "organization" or "org" => ContactKind.Organisation,
+        _ => ContactKind.Person,
+    };
+
+    /// <summary>Human label for a contact kind.</summary>
+    public static string DescribeKind(ContactKind kind) => kind switch
+    {
+        ContactKind.Business => "business",
+        ContactKind.Place => "place",
+        ContactKind.Organisation => "organisation",
+        _ => "person",
+    };
 
     /// <summary>Wire form for a tier. Delegates to Core so there is one mapping.</summary>
     public static string TierToWire(ContactTier tier) => ContactTierNames.ToWire(tier);

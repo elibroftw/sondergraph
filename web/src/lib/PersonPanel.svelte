@@ -183,6 +183,26 @@
     </section>
   {/if}
 
+  <section>
+    <h3>Kind</h3>
+    <select
+      class="kind-select"
+      value={person.kind}
+      aria-label="Contact kind"
+      onchange={(e) => {
+        api.setKind(person.id, (e.target as HTMLSelectElement).value).then(onchanged)
+      }}
+    >
+      <option value="person">Person</option>
+      <option value="business">Business</option>
+      <option value="place">Place</option>
+      <option value="organisation">Organisation</option>
+    </select>
+    {#if person.kind !== 'person'}
+      <p class="muted hint-line">Excluded from guest lists and the friend network.</p>
+    {/if}
+  </section>
+
   <section class="not-a-contact">
     <button
       class="link-toggle"

@@ -79,6 +79,9 @@ public static class FriendGraph
         // ones are drawn as free-standing nodes; otherwise the picture is 1,700 spokes.
         var drawn = connected
             .Select(id => byId[id])
+            // A business is not someone you are friends with, so it does not belong in a
+            // network of friendships.
+            .Where(p => p.IsPerson)
             .OrderBy(p => RelationshipOrder.Rank(p.Tier))
             .ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();

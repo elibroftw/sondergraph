@@ -31,6 +31,8 @@ export interface PersonSummary {
   needsFixing: boolean
   placeholderName: boolean
   notAContact: boolean
+  kind: string
+  kindLabel: string
   phones: string[]
   emails: string[]
   locations: LocationSummary[]
@@ -436,6 +438,11 @@ export const api = {
    */
   setNotAContact: async (id: string, notAContact: boolean): Promise<void> => {
     await patch(`/api/people/${encodeURIComponent(id)}/not-a-contact`, { notAContact })
+  },
+
+  /** Sets what kind of entry a record is: person, business, place, organisation. */
+  setKind: async (id: string, kind: string): Promise<void> => {
+    await patch(`/api/people/${encodeURIComponent(id)}/kind`, { kind })
   },
 
   /** Records a person's gender, preserved exactly as typed. */

@@ -233,6 +233,17 @@ public sealed class PersonEditor
     private static IReadOnlyList<string> Merge(IReadOnlyList<string> ids, string add) =>
         ids.Contains(add, StringComparer.OrdinalIgnoreCase) ? ids : [.. ids, add];
 
+    /// <summary>Sets what kind of entry this record is.</summary>
+    /// <remarks>
+    /// Changing to a non-person kind has consequences elsewhere: businesses are excluded from
+    /// guest lists and the friend network. That is deliberate - the point of recording the
+    /// kind is that the rest of the app stops treating a gym as a friend.
+    /// </remarks>
+    public Result SetKind(string personId, ContactKind kind)
+    {
+        return Mutate(personId, person => person with { Kind = kind });
+    }
+
     /// <summary>
     /// Marks a person as not a contact, or restores them.
     /// </summary>

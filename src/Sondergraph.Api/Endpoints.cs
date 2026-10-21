@@ -208,6 +208,9 @@ public static class SondergraphEndpoints
         // about the person, and a re-import would recreate anything actually deleted.
         api.MapPatch("/people/{id}/not-a-contact", PatchNotAContact);
 
+        // What kind of entry this is: person, business, place, organisation.
+        api.MapPatch("/people/{id}/kind", PatchKind);
+
         // Friendships between contacts, which is what a network view needs. Symmetric:
         // writing one side writes the other.
         api.MapPost("/people/{id}/friends", AddFriend);
@@ -258,6 +261,36 @@ public static class SondergraphEndpoints
     private sealed record GenderRequest(string? Gender);
 
     private sealed record NotAContactRequest(bool NotAContact);
+
+    private sealed record KindRequest(string? Kind);
+
+    private static IResult PatchKind(WorkspaceProvider provider, string id, KindRequest request)
+    {
+        var kind = PersonDocument.ParseKind(request.Kind);
+
+        // An unrecognised value silently becoming "person" would let a typo overwrite a
+        // deliberate choice, so it is rejected instead.
+        if (!string.Equals(PersonDocument.KindToWire(kind), (request.Kind ?? "person").Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.Json(
+                new { error = $"Unknown kind '{request.Kind}'.", code = nameof(ErrorCode.Unknown) },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var changed = new PersonEditor(store.ValueOrThrow()).SetKind(id, kind);
+
+        return changed.IsOk
+            ? Results.Ok(new { personId = id, kind = PersonDocument.KindToWire(kind) })
+            : Problem(changed.Code, changed.Message, changed.Hint);
+    }
 
     private static IResult PatchNotAContact(WorkspaceProvider provider, string id, NotAContactRequest request)
     {
@@ -545,7 +578,8 @@ public static class SondergraphEndpoints
             Gazetteer: places);
 
         // Exclude whoever is already invited, so the suggestions are genuinely additive.
-        var pool = everyone.Where(p => !onList.Contains(p.Id)).ToList();
+        // Only people are suggested as guests: inviting a gym is a category error.
+        var pool = everyone.Where(p => p.IsPerson && !onList.Contains(p.Id)).ToList();
         var plan = InvitePlanner.Plan(pool, options);
 
         return Results.Ok(new
@@ -1682,6 +1716,8 @@ public static class SondergraphEndpoints
         friendsWith = person.FriendsWith,
         needsFixing = person.NeedsFixing,
         notAContact = person.NotAContact,
+        kind = PersonDocument.KindToWire(person.Kind),
+        kindLabel = PersonDocument.DescribeKind(person.Kind),
         placeholderName = person.HasPlaceholderName,
         phones = person.Phones,
         emails = person.Emails,
@@ -1719,6 +1755,8 @@ public static class SondergraphEndpoints
         friendsWith = person.FriendsWith,
         needsFixing = person.NeedsFixing,
         notAContact = person.NotAContact,
+        kind = PersonDocument.KindToWire(person.Kind),
+        kindLabel = PersonDocument.DescribeKind(person.Kind),
         placeholderName = person.HasPlaceholderName,
         phones = person.Phones,
         emails = person.Emails,

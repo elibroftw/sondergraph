@@ -14,6 +14,8 @@
   let query = $state('')
   let tier = $state('all')
   let platform = $state('all')
+  let place = $state('all')
+  let places = $state<{ value: string; count: number }[]>([])
   let selectedId = $state<string | null>(null)
   let selected = $state<PersonDetail | null>(null)
 
@@ -43,7 +45,7 @@
     error = null
 
     try {
-      const page = await api.people(query, tier, platform)
+      const page = await api.people(query, tier, platform, place)
       contacts = page.people
       total = page.total
     } catch (e) {
@@ -100,6 +102,24 @@
     loadContacts()
   }
 
+  function onPlaceChange(next: string) {
+    place = next
+    loadContacts()
+  }
+
+  // Places come from the server, derived from the people who have one, so the list cannot
+  // accumulate entries nobody uses.
+  $effect(() => {
+    api
+      .places()
+      .then((result) => {
+        places = result.places
+      })
+      .catch(() => {
+        places = []
+      })
+  })
+
   // A smart query can contain its own filters, so the dropdown reflects what the query says.
   // Showing "All sources" while the query says platform:ig would be actively misleading.
   const queryPlatform = $derived(
@@ -111,7 +131,8 @@
   const queryTier = $derived(/\b(?:tier|relationship|rel):("?)([a-z-]+)\1/i.exec(query)?.[2]?.toLowerCase())
 
   const activeFilters = $derived(
-    [platform !== 'all', tier !== 'all', queryPlatform !== undefined, queryTier !== undefined]
+    [platform !== 'all', place !== 'all', tier !== 'all',
+     queryPlatform !== undefined, queryTier !== undefined]
       .filter(Boolean).length,
   )
 
@@ -123,6 +144,7 @@
   function clearFilters() {
     query = ''
     platform = 'all'
+    place = 'all'
     tier = 'all'
     loadContacts()
   }
@@ -190,6 +212,20 @@
           </select>
         </label>
 
+        <label class="source-filter">
+          <span class="visually-hidden">Filter by location</span>
+          <select
+            value={place}
+            onchange={(e) => onPlaceChange((e.target as HTMLSelectElement).value)}
+            aria-label="Filter by location"
+          >
+            <option value="all">All locations</option>
+            {#each places as option (option.value)}
+              <option value={option.value}>{option.value}</option>
+            {/each}
+          </select>
+        </label>
+
         <div class="tiers" role="tablist" aria-label="Filter by tier">
           {#each TIERS as option (option.value)}
             <button
@@ -230,7 +266,7 @@
           <p class="muted">Loading…</p>
         {:else if contacts.length === 0}
           <p class="muted">
-            {query || tier !== 'all' || platform !== 'all'
+            {query || tier !== 'all' || platform !== 'all' || place !== 'all'
               ? 'No one matches that filter.'
               : 'No contacts yet. Import an export with: sg ingest parse <path>'}
           </p>

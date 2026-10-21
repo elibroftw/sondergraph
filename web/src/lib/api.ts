@@ -236,7 +236,13 @@ export const api = {
 
   stats: (signal?: AbortSignal) => request<Stats>('/api/stats', signal),
 
-  people: (query: string, tier: string, platform = 'all', signal?: AbortSignal) => {
+  people: (
+    query: string,
+    tier: string,
+    platform = 'all',
+    place = 'all',
+    signal?: AbortSignal,
+  ) => {
     const params = new URLSearchParams()
 
     if (query.trim()) {
@@ -249,6 +255,10 @@ export const api = {
 
     if (platform && platform !== 'all') {
       params.set('platform', platform)
+    }
+
+    if (place && place !== 'all') {
+      params.set('place', place)
     }
 
     const suffix = params.toString()
@@ -342,6 +352,10 @@ export const api = {
         combined: string
       }[]
     }>(`/api/people/${encodeURIComponent(id)}/links`, signal),
+
+  /** Places recorded on any person, most-used first. Derived, never stored. */
+  places: (signal?: AbortSignal) =>
+    request<{ total: number; places: { value: string; count: number }[] }>('/api/places', signal),
 
   /** How-you-know-them values in use, derived from the people who have one. */
   connections: (signal?: AbortSignal) =>

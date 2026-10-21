@@ -104,6 +104,11 @@ public static class SondergraphEndpoints
         api.MapDelete("/people/{id}/accounts", RemoveAccount);
         api.MapGet("/connections", ListConnections);
 
+        // Places in use, for the location filter. Derived from the people who have one, for
+        // the same reason as channels and connections: a stored list keeps entries nobody
+        // uses and a derived one cannot.
+        api.MapGet("/places", ListPlaces);
+
         // Merging. POST /api/merges creates one; DELETE reverses it. Both are explicit
         // verbs on a resource rather than a "merge" flag on a person, so the result has an
         // id that can be undone.
@@ -201,6 +206,7 @@ public static class SondergraphEndpoints
         string? q,
         string? tier,
         string? platform,
+        string? place,
         int? limit)
     {
         var store = provider.Store();
@@ -236,6 +242,11 @@ public static class SondergraphEndpoints
             {
                 Platforms = [.. query.Platforms, SearchQuery.ResolvePlatform(platform)],
             };
+        }
+
+        if (!string.IsNullOrWhiteSpace(place) && place != "all")
+        {
+            query = query with { Places = [place.Trim()] };
         }
 
         if (!query.IsEmpty)
@@ -699,6 +710,61 @@ public static class SondergraphEndpoints
             displayName = a.DisplayName,
             profileUrl = a.ProfileUrl,
         });
+
+    /// <summary>Places recorded on any person, most-used first.</summary>
+    /// <remarks>
+    /// Case is preserved as typed ("San Francisco"), because a place is a name rather than a
+    /// key. Deduplication is case-insensitive so "toronto" and "Toronto" do not appear twice,
+    /// and the most common spelling wins.
+    /// </remarks>
+    private static IResult ListPlaces(WorkspaceProvider provider)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var loaded = store.ValueOrThrow().ListAll(out _);
+
+        if (!loaded.IsOk)
+        {
+            return Problem(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var people = loaded.ValueOrThrow();
+
+        var counts = new Dictionary<string, (string Display, int Count)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var person in people)
+        {
+            foreach (var location in person.Locations)
+            {
+                var place = location.Place.Trim();
+
+                if (place.Length == 0)
+                {
+                    continue;
+                }
+
+                var existing = counts.GetValueOrDefault(place);
+
+                // Keep the first-typed spelling but accumulate the count.
+                counts[place] = existing.Display is null
+                    ? (place, 1)
+                    : (existing.Display, existing.Count + 1);
+            }
+        }
+
+        var places = counts
+            .OrderByDescending(kv => kv.Value.Count)
+            .ThenBy(kv => kv.Value.Display, StringComparer.CurrentCultureIgnoreCase)
+            .Select(kv => new { value = kv.Value.Display, count = kv.Value.Count })
+            .ToList();
+
+        return Results.Ok(new { total = places.Count, places });
+    }
 
     private static IResult ListConnections(WorkspaceProvider provider)
     {

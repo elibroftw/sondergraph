@@ -213,6 +213,16 @@ public sealed class SearchQueryTests
     }
 
     [Fact]
+    public void Places_filter_is_case_insensitive()
+    {
+        // The dropdown sends the place exactly as stored, but the smart query does not have
+        // to: someone typing place:toronto in lowercase should still find Toronto.
+        var person = Make("Ada", places: ["Toronto"]);
+
+        Assert.True(SearchQuery.Parse("place:toronto").Matches(person));
+    }
+
+    [Fact]
     public void A_text_term_matches_the_name()
     {
         Assert.True(SearchQuery.Parse("ada").Matches(Make("Ada Lovelace")));

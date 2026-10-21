@@ -81,7 +81,7 @@
   {/if}
 
   {#if !open}
-    <p class="muted">Combine two records of one person.</p>
+    <p class="muted">Combine with another contact.</p>
     <button onclick={() => (open = true)}>Merge with another contact…</button>
   {:else}
     <p class="muted">

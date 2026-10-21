@@ -28,7 +28,8 @@ internal static class EditCommands
         ("friend", ContactTier.Friend, "a friend"),
         ("close", ContactTier.Close, "a close friend"),
         ("best", ContactTier.Best, "a best friend"),
-        ("family", ContactTier.Family, "family"),
+        ("family", ContactTier.Family, "immediate family"),
+        ("extended-family", ContactTier.ExtendedFamily, "extended family"),
         ("none", ContactTier.Unknown, "clear the rating"),
     ];
 

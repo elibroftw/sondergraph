@@ -28,8 +28,21 @@ public enum ContactTier
     /// <summary>A best friend.</summary>
     Best = 4,
 
-    /// <summary>Family, which sits outside the friend scale.</summary>
+    /// <summary>
+    /// Immediate family: parents, siblings, children. Sits outside the friend scale.
+    /// </summary>
     Family = 5,
+
+    /// <summary>
+    /// Extended family: cousins, aunts, uncles, in-laws.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately ranked between friends and acquaintances rather than next to immediate
+    /// family. A cousin you see at weddings is not closer than your closest friends, and
+    /// lumping the two together made "family" mean both the people you would call in an
+    /// emergency and the ones you exchange greeting cards with.
+    /// </remarks>
+    ExtendedFamily = 6,
 }
 
 /// <summary>
@@ -161,8 +174,9 @@ public static class RelationshipOrder
         ContactTier.Best => 1,
         ContactTier.Close => 2,
         ContactTier.Friend => 3,
-        ContactTier.Acquaintance => 4,
-        _ => 5,
+        ContactTier.ExtendedFamily => 4,
+        ContactTier.Acquaintance => 5,
+        _ => 6,
     };
 }
 
@@ -184,6 +198,7 @@ public static class ContactTierNames
         ContactTier.Close => "close",
         ContactTier.Best => "best",
         ContactTier.Family => "family",
+        ContactTier.ExtendedFamily => "extended-family",
         _ => "unknown",
     };
 
@@ -195,6 +210,7 @@ public static class ContactTierNames
         "close" => ContactTier.Close,
         "best" => ContactTier.Best,
         "family" => ContactTier.Family,
+        "extended-family" or "extended" or "extendedfamily" => ContactTier.ExtendedFamily,
         _ => ContactTier.Unknown,
     };
 
@@ -206,6 +222,7 @@ public static class ContactTierNames
         ContactTier.Close => "close friend",
         ContactTier.Best => "best friend",
         ContactTier.Family => "family",
+        ContactTier.ExtendedFamily => "extended family",
         _ => "-",
     };
 }

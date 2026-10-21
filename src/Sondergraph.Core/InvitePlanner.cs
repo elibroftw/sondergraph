@@ -125,6 +125,9 @@ public static class InvitePlanner
         ContactTier.Best => 1.4,
         ContactTier.Close => 1.2,
         ContactTier.Friend => 1.0,
+        // Between friends and acquaintances, matching RelationshipOrder: a cousin is neither
+        // an inner-circle friend nor a distant acquaintance.
+        ContactTier.ExtendedFamily => 0.8,
         ContactTier.Acquaintance => 0.6,
         _ => 0.25,
     };

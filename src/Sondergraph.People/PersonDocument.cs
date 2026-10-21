@@ -427,6 +427,9 @@ public static class PersonDocument
             case "fam" or "family":
                 tier = ContactTier.Family;
                 return true;
+            case "ext" or "extended" or "extended-family" or "extendedfamily" or "extended_family":
+                tier = ContactTier.ExtendedFamily;
+                return true;
             case "u" or "unknown" or "none":
                 tier = ContactTier.Unknown;
                 return true;

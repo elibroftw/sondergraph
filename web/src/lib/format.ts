@@ -65,6 +65,7 @@ export const TIERS = [
   { value: 'best', label: 'Best friends' },
   { value: 'close', label: 'Close friends' },
   { value: 'friend', label: 'Friends' },
+  { value: 'extended-family', label: 'Extended family' },
   { value: 'acquaintance', label: 'Acquaintances' },
   { value: 'family', label: 'Family' },
   { value: 'unknown', label: 'Unrated' },

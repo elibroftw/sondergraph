@@ -2108,6 +2108,9 @@ ul.plain a,
 }
 
 .graph-svg {
+  /* Explicit dimensions: the simulation reads clientWidth/clientHeight on first render, and
+     a zero-sized element would place every node at the origin. */
+  display: block;
   width: 100%;
   height: min(70vh, 720px);
   border: 1px solid var(--border);

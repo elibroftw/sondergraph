@@ -44,6 +44,12 @@ public sealed class PersonStore
     /// </remarks>
     public int MergedAwayCount { get; private set; }
 
+    /// <summary>
+    /// How many records the last <see cref="ListAll"/> skipped because they are marked not a
+    /// contact.
+    /// </summary>
+    public int NotAContactCount { get; private set; }
+
     /// <summary>Absolute path to the people directory.</summary>
     public string PeopleDirectory => _workspace.PeopleDirectory;
 
@@ -68,6 +74,7 @@ public sealed class PersonStore
         var warningsList = new List<string>();
         var people = new List<Person>();
         var mergedAway = 0;
+        var notAContact = 0;
 
         if (!Directory.Exists(_workspace.PeopleDirectory))
         {
@@ -108,11 +115,24 @@ public sealed class PersonStore
                 continue;
             }
 
-            people.Add(read.ValueOrThrow());
+            var person = read.ValueOrThrow();
+
+            // People marked "not a contact" are excluded here, at the single point every
+            // caller goes through: the list, the stats, party suggestions, the graph and
+            // search all read ListAll. Filtering in each of them would mean remembering to
+            // filter in the next one too.
+            if (person.NotAContact)
+            {
+                notAContact++;
+                continue;
+            }
+
+            people.Add(person);
         }
 
         warnings = warningsList;
         MergedAwayCount = mergedAway;
+        NotAContactCount = notAContact;
 
         return Result.Ok<IReadOnlyList<Person>>(
             people.OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase).ToList());

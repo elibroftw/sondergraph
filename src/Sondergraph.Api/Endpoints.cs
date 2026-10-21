@@ -204,6 +204,10 @@ public static class SondergraphEndpoints
         api.MapPatch("/guest-lists/{slug}", PatchGuestList);
         api.MapPatch("/people/{id}/gender", PatchGender);
 
+        // Marks a record as "not a contact". The record is kept: suppression is a judgement
+        // about the person, and a re-import would recreate anything actually deleted.
+        api.MapPatch("/people/{id}/not-a-contact", PatchNotAContact);
+
         // Friendships between contacts, which is what a network view needs. Symmetric:
         // writing one side writes the other.
         api.MapPost("/people/{id}/friends", AddFriend);
@@ -252,6 +256,28 @@ public static class SondergraphEndpoints
     private sealed record WorkspaceRequest(string? Path);
 
     private sealed record GenderRequest(string? Gender);
+
+    private sealed record NotAContactRequest(bool NotAContact);
+
+    private static IResult PatchNotAContact(WorkspaceProvider provider, string id, NotAContactRequest request)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var editor = new PersonEditor(store.ValueOrThrow());
+        var changed = editor.SetNotAContact(id, request.NotAContact);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        return Results.Ok(new { personId = id, notAContact = request.NotAContact });
+    }
 
     private sealed record FriendRequest(string? FriendId);
 
@@ -1655,6 +1681,7 @@ public static class SondergraphEndpoints
         gender = person.Gender,
         friendsWith = person.FriendsWith,
         needsFixing = person.NeedsFixing,
+        notAContact = person.NotAContact,
         placeholderName = person.HasPlaceholderName,
         phones = person.Phones,
         emails = person.Emails,
@@ -1691,6 +1718,7 @@ public static class SondergraphEndpoints
         gender = person.Gender,
         friendsWith = person.FriendsWith,
         needsFixing = person.NeedsFixing,
+        notAContact = person.NotAContact,
         placeholderName = person.HasPlaceholderName,
         phones = person.Phones,
         emails = person.Emails,

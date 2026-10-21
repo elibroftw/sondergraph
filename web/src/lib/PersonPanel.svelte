@@ -183,6 +183,24 @@
     </section>
   {/if}
 
+  <section class="not-a-contact">
+    <button
+      class="link-toggle"
+      class:on={person.notAContact}
+      onclick={async () => {
+        await api.setNotAContact(person.id, !person.notAContact)
+        onchanged()
+      }}
+    >
+      {person.notAContact ? 'Marked as not a contact' : 'Not a contact'}
+    </button>
+    <span class="muted hint-line">
+      {person.notAContact
+        ? 'Hidden from lists and counts. The record is kept, so a re-import will not bring it back as a contact.'
+        : 'Keeps the record but hides this person from lists, counts and the graph.'}
+    </span>
+  </section>
+
   {#if meaningfulAliases.length > 0}
     <section>
       <h3>Also known as</h3>

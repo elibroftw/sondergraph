@@ -58,6 +58,12 @@ public static class PersonDocument
             output.Append("met: ").Append(Yaml.Scalar(person.HowWeMet)).Append('\n');
         }
 
+        // Written only when set, so ordinary records stay clean.
+        if (person.NotAContact)
+        {
+            output.Append("notAContact: true\n");
+        }
+
         Yaml.WriteList(output, "friendsWith", person.FriendsWith);
 
         // Omitted when unset, since most contacts will never have one recorded.
@@ -189,6 +195,10 @@ public static class PersonDocument
                 : null,
             // Preserved exactly as typed: the user decides the vocabulary.
             FriendsWith = lists.GetValueOrDefault("friendsWith", []),
+            NotAContact = string.Equals(
+                scalars.GetValueOrDefault("notAContact")?.Trim(),
+                "true",
+                StringComparison.OrdinalIgnoreCase),
             Gender = scalars.GetValueOrDefault("gender") is { Length: > 0 } rawGender
                 && Yaml.Unquote(rawGender) is { Length: > 0 } gender
                 ? gender

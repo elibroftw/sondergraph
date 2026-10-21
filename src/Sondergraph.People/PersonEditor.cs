@@ -233,6 +233,19 @@ public sealed class PersonEditor
     private static IReadOnlyList<string> Merge(IReadOnlyList<string> ids, string add) =>
         ids.Contains(add, StringComparer.OrdinalIgnoreCase) ? ids : [.. ids, add];
 
+    /// <summary>
+    /// Marks a person as not a contact, or restores them.
+    /// </summary>
+    /// <remarks>
+    /// The record is kept. Suppression is a judgement about the person, not about the data:
+    /// the information is accurate, the record may still be needed, and a re-import would
+    /// recreate it if it were deleted.
+    /// </remarks>
+    public Result SetNotAContact(string personId, bool notAContact)
+    {
+        return Mutate(personId, person => person with { NotAContact = notAContact });
+    }
+
     /// <summary>Records a person's gender, or clears it.</summary>
     /// <remarks>
     /// Trimmed but otherwise preserved exactly: the vocabulary belongs to the user, so "F"

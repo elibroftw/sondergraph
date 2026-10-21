@@ -30,6 +30,7 @@ export interface PersonSummary {
   friendsWith: string[]
   needsFixing: boolean
   placeholderName: boolean
+  notAContact: boolean
   phones: string[]
   emails: string[]
   locations: LocationSummary[]
@@ -425,6 +426,16 @@ export const api = {
     }
 
     return ((await response.json()) as { friendsWith: string[] }).friendsWith
+  },
+
+  /**
+   * Marks a record as not a contact, or restores it.
+   *
+   * The record is kept either way - a re-import would recreate anything deleted, and the
+   * information is not wrong, the person just is not someone to keep.
+   */
+  setNotAContact: async (id: string, notAContact: boolean): Promise<void> => {
+    await patch(`/api/people/${encodeURIComponent(id)}/not-a-contact`, { notAContact })
   },
 
   /** Records a person's gender, preserved exactly as typed. */

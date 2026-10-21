@@ -287,6 +287,24 @@ public sealed record Person
     public ContactTier Tier { get; init; } = ContactTier.Unknown;
 
     /// <summary>
+    /// Whether the user has decided this is not a contact.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Different from deleting. A barista whose number got saved, a recruiter who messaged
+    /// once - these are real records that the user does not want in their contact list, but
+    /// whose information is not wrong and whose absence would not stay absent: re-ingesting
+    /// the source export would recreate them.
+    /// </para>
+    /// <para>
+    /// So suppression is a durable decision recorded on the record itself. Suppressed people
+    /// are excluded from the list, counts, party suggestions and the graph, but are never
+    /// destroyed and never resurrected by a re-import.
+    /// </para>
+    /// </remarks>
+    public bool NotAContact { get; init; }
+
+    /// <summary>
     /// Ids of contacts this person is friends with, independent of how you know them.
     /// </summary>
     /// <remarks>

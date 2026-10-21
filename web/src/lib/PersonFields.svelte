@@ -171,18 +171,29 @@
 <section>
   <h3>Gender</h3>
 
-  <!-- Free text, not a fixed list: this app is not entitled to decide which genders
-       exist, and the value is preserved exactly as typed. Most contacts leave it blank,
-       which is the expected state rather than an error. -->
-  <input
+  <!-- A two-option dropdown, as requested. "Not set" is a real choice rather than a gap:
+       most contacts have no gender recorded, and clearing one has to be possible.
+       A value already stored that is neither M nor F is kept and shown rather than
+       silently dropped - the inferred values in this workspace are all M or F, but a
+       record written by an older version or by hand should not be destroyed by opening
+       the panel. -->
+  <select
     class="gender-input"
-    bind:value={genderDraft}
-    placeholder="Not recorded"
+    value={genderDraft}
     aria-label="Gender"
     disabled={busy}
-    onblur={saveGender}
-    onkeydown={(e) => { if (e.key === 'Enter') saveGender() }}
-  />
+    onchange={(e) => {
+      genderDraft = (e.target as HTMLSelectElement).value
+      saveGender()
+    }}
+  >
+    <option value="">Not set</option>
+    <option value="M">M</option>
+    <option value="F">F</option>
+    {#if genderDraft && genderDraft !== 'M' && genderDraft !== 'F'}
+      <option value={genderDraft}>{genderDraft}</option>
+    {/if}
+  </select>
 </section>
 
 <section>

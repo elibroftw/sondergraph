@@ -1639,9 +1639,11 @@ ul.plain a,
   }
 }
 
-/* Gender is free text and usually empty, so it reads as a quiet single-line field. */
+/* Gender is a two-option dropdown. Kept narrow rather than full width: it holds two
+   characters, and a full-width control for "M" reads as a mistake. */
 .gender-input {
-  width: 100%;
+  width: auto;
+  min-width: 130px;
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1649,10 +1651,13 @@ ul.plain a,
   color: var(--text);
   font-family: var(--font-body);
   font-size: 13px;
+  cursor: pointer;
 }
 
-.gender-input::placeholder {
-  color: var(--muted);
+.gender-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 /* ── Guest lists ──────────────────────────────────────────────────────────────── */

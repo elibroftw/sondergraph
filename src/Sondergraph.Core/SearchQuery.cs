@@ -92,6 +92,8 @@ public sealed record SearchQuery
         ["google"] = "vcard",
         ["takeout"] = "vcard",
         ["discord"] = "discord",
+        ["twitter"] = "twitter",
+        ["x"] = "twitter",
         ["dc"] = "discord",
         ["signal"] = "signal",
         ["bsky"] = "bluesky",

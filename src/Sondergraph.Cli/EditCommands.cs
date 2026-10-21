@@ -151,7 +151,19 @@ internal static class EditCommands
 
     internal static int Gender(string[] args)
     {
-        // sg gender <person> [<gender>] [--clear]
+        // sg gender <person|suggest|inferred|unrecorded> [<gender>] [--clear]
+        var action = args.Skip(1).FirstOrDefault(a => !a.StartsWith('-'));
+
+        if (action is "suggest" or "preview" or "infer")
+        {
+            return Infer(args, apply: args.Contains("--yes", StringComparer.Ordinal), clear: false);
+        }
+
+        if (action is "inferred")
+        {
+            return Infer(args, apply: args.Contains("--yes", StringComparer.Ordinal), clear: args.Contains("--clear", StringComparer.Ordinal));
+        }
+
         var clear = args.Contains("--clear", StringComparer.Ordinal);
         var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
         var positional = new List<string>();
@@ -224,6 +236,126 @@ internal static class EditCommands
 
             return ExitCode.Success;
         });
+    }
+
+    /// <summary>
+    /// Fills in genders from names, or reports what it would do.
+    /// </summary>
+    /// <remarks>
+    /// Dry run by default. These values are guesses written into the same field a recorded
+    /// gender uses, so a bulk write without a preview would be the one change the user cannot
+    /// inspect beforehand. Every value it writes is marked inferred, so it can be reverted.
+    /// </remarks>
+    private static int Infer(string[] args, bool apply, bool clear)
+    {
+        var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
+        var located = Workspace.Locate(workspaceArg);
+
+        if (!located.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(located);
+            return ExitCode.MapExitCode(located.Code);
+        }
+
+        var store = new PersonStore(located.ValueOrThrow());
+        var loaded = store.ListAll(out _);
+
+        if (!loaded.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(loaded);
+            return ExitCode.MapExitCode(loaded.Code);
+        }
+
+        var people = loaded.ValueOrThrow();
+        var editor = new PersonEditor(store);
+
+        if (clear)
+        {
+            var inferred = people.Where(p => p.GenderWasInferred).ToList();
+
+            if (inferred.Count == 0)
+            {
+                Console.WriteLine("No inferred genders to clear.");
+                return ExitCode.Success;
+            }
+
+            if (!apply)
+            {
+                Console.WriteLine($"{inferred.Count} inferred gender(s) would be cleared - re-run with --yes:");
+                foreach (var p in inferred.Take(20))
+                {
+                    Console.WriteLine($"  {p.Name} ({p.Gender})");
+                }
+
+                return ExitCode.Success;
+            }
+
+            var cleared = editor.ClearInferredGenders(people);
+
+            if (!cleared.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(cleared);
+                return ExitCode.MapExitCode(cleared.Code);
+            }
+
+            Console.WriteLine($"Cleared {cleared.ValueOrThrow()} inferred gender(s).");
+            return ExitCode.Success;
+        }
+
+        // Only fill blanks: an existing gender, recorded or inferred, is never overwritten.
+        var candidates = people
+            .Where(p => string.IsNullOrWhiteSpace(p.Gender))
+            .Select(p => (Person: p, Guess: GenderGuess.Guess(p.Name)))
+            .Where(x => x.Guess is not null)
+            .ToList();
+
+        var unguessable = people.Count(p => string.IsNullOrWhiteSpace(p.Gender)) - candidates.Count;
+
+        if (candidates.Count == 0)
+        {
+            Console.WriteLine("Nothing to infer.");
+            return ExitCode.Success;
+        }
+
+        Console.WriteLine(
+            $"{candidates.Count} of {people.Count} contacts have a guessable name"
+            + (apply ? ":" : " (dry run - re-run with --yes to apply):"));
+
+        foreach (var (person, guess) in candidates.Take(25))
+        {
+            Console.WriteLine($"  {person.Name,-36} {guess!.Gender}   (from '{guess.Source}')");
+        }
+
+        if (candidates.Count > 25)
+        {
+            Console.WriteLine($"  … and {candidates.Count - 25} more");
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"  {unguessable} left alone: ambiguous or unrecognised names.");
+
+        if (!apply)
+        {
+            return ExitCode.Success;
+        }
+
+        var written = 0;
+
+        foreach (var (person, guess) in candidates)
+        {
+            var result = editor.SetInferredGender(person.Id, guess!.Gender);
+
+            if (result.IsOk)
+            {
+                written++;
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(
+            $"Wrote {written} inferred gender(s). Undo with: sg gender inferred --clear --yes");
+
+        return ExitCode.Success;
     }
 
     internal static int Met(string[] args)

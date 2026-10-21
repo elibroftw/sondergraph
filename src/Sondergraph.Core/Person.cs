@@ -292,6 +292,22 @@ public sealed record Person
     public string? Gender { get; init; }
 
     /// <summary>
+    /// How the gender was arrived at: <c>inferred</c> when guessed from the name, null when
+    /// the user set it.
+    /// </summary>
+    /// <remarks>
+    /// Exists because a guess is written into the same field a person's recorded gender
+    /// would occupy, and the two must remain distinguishable. Without it, a wrong batch is
+    /// indistinguishable from facts and unfixable without reading every contact; with it,
+    /// <c>sg gender inferred --clear</c> reverts them in one step.
+    /// </remarks>
+    public string? GenderSource { get; init; }
+
+    /// <summary>Whether the recorded gender was inferred rather than stated.</summary>
+    public bool GenderWasInferred =>
+        string.Equals(GenderSource, "inferred", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// How the user knows this person, e.g. <c>work</c>, <c>university</c>, <c>the climbing
     /// gym</c>. Null when unset.
     /// </summary>

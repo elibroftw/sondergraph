@@ -62,6 +62,11 @@ public static class PersonDocument
         if (!string.IsNullOrWhiteSpace(person.Gender))
         {
             output.Append("gender: ").Append(Yaml.Scalar(person.Gender)).Append('\n');
+
+            if (!string.IsNullOrWhiteSpace(person.GenderSource))
+            {
+                output.Append("genderSource: ").Append(Yaml.Scalar(person.GenderSource)).Append('\n');
+            }
         }
 
         if (person.Locations.Count == 0)
@@ -184,6 +189,9 @@ public static class PersonDocument
             Gender = scalars.GetValueOrDefault("gender") is { Length: > 0 } rawGender
                 && Yaml.Unquote(rawGender) is { Length: > 0 } gender
                 ? gender
+                : null,
+            GenderSource = Yaml.Unquote(scalars.GetValueOrDefault("genderSource") ?? string.Empty) is { Length: > 0 } source
+                ? source
                 : null,
             CreatedAt = Yaml.ParseDate(scalars.GetValueOrDefault("createdAt")),
             UpdatedAt = Yaml.ParseDate(scalars.GetValueOrDefault("updatedAt")),

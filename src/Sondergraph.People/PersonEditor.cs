@@ -167,7 +167,47 @@ public sealed class PersonEditor
         return Mutate(personId, person => person with
         {
             Gender = string.IsNullOrWhiteSpace(value) ? null : value,
+
+            // A human edit supersedes any earlier guess, so the inference marker goes with it.
+            GenderSource = null,
         });
+    }
+
+    /// <summary>Records a gender inferred from the name, marking where it came from.</summary>
+    /// <remarks>
+    /// Separate from <see cref="SetGender"/> so the marker cannot be set by accident: a
+    /// caller has to be explicit that this value is a guess.
+    /// </remarks>
+    public Result SetInferredGender(string personId, string gender)
+    {
+        return Mutate(personId, person => person with
+        {
+            Gender = string.IsNullOrWhiteSpace(gender) ? null : gender.Trim(),
+            GenderSource = "inferred",
+        });
+    }
+
+    /// <summary>Clears every gender that was inferred, leaving recorded ones alone.</summary>
+    /// <returns>How many people were changed.</returns>
+    public Result<int> ClearInferredGenders(IEnumerable<Person> people)
+    {
+        ArgumentNullException.ThrowIfNull(people);
+
+        var cleared = 0;
+
+        foreach (var person in people.Where(p => p.GenderWasInferred).ToList())
+        {
+            var result = Mutate(person.Id, p => p with { Gender = null, GenderSource = null });
+
+            if (!result.IsOk)
+            {
+                return Result.Fail<int>(result.Code, result.Message, result.Hint);
+            }
+
+            cleared++;
+        }
+
+        return Result.Ok(cleared);
     }
 
     public Result AddAccount(string personId, string platform, string handle, string? profileUrl = null)

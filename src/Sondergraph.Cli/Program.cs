@@ -39,6 +39,7 @@ public static class Program
             "gender" => EditCommands.Gender(args),
             "guest" => GuestCommands.Run(args),
             "party" => PartyCommands.Run(args),
+            "geo" => GeoCommands.Run(args),
             "rename" => EditCommands.Rename(args),
             "graft" or "merge" => MergeCommands.Graft(args),
             "ungraft" or "unmerge" => MergeCommands.Ungraft(args),
@@ -128,6 +129,8 @@ public static class Program
         Console.WriteLine("  guest <list|add|show>  Create and inspect guest lists.");
         Console.WriteLine("  party --here <place>   Suggest invites by location, tier and gender balance.");
         Console.WriteLine("  party --everyone       Suggest invites from the whole graph.");
+        Console.WriteLine("  geo --resolve          Look up coordinates for the places in use.");
+        Console.WriteLine("  geo --list             Show known coordinates.");
         Console.WriteLine("  rename <person> <name> Rename, keeping the id.");
         Console.WriteLine();
         Console.WriteLine("Merging:");

@@ -37,13 +37,21 @@ internal static class PartyCommands
             .Where(p => !string.IsNullOrWhiteSpace(p))
             .ToList();
 
+        // Coordinates come from data/gazetteer.json, resolved once by "sg geo --resolve".
+        // A missing gazetteer is not an error: the plan simply has no distance signal.
+        var gazetteer = new GazetteerStore(located.ValueOrThrow()).Load();
+        var placesWithCoords = gazetteer.IsOk ? gazetteer.ValueOrThrow() : Gazetteer.Empty;
+        var venue = placesWithCoords.Find(places.FirstOrDefault());
+
         var options = new PartyPlanOptions(
             everyone ? CohortScope.Everyone : CohortScope.Location,
             places,
             FemaleShare: double.TryParse(ValueAfter(args, "--female-share"), out var share) ? share : 0.51,
             Capacity: int.TryParse(ValueAfter(args, "--capacity"), out var cap) ? cap : 20,
             Waves: int.TryParse(ValueAfter(args, "--waves"), out var waves) ? waves : 3,
-            Seed: int.TryParse(ValueAfter(args, "--seed"), out var seed) ? seed : 1);
+            Seed: int.TryParse(ValueAfter(args, "--seed"), out var seed) ? seed : 1,
+            Venue: venue,
+            Gazetteer: placesWithCoords);
 
         if (!everyone && places.Count == 0)
         {
@@ -68,7 +76,12 @@ internal static class PartyCommands
                     ? "unrated"
                     : suggestion.TierLabel;
 
-                Console.WriteLine($"    {suggestion.Person.Name,-34} {tier,-14} {suggestion.Person.Gender ?? "-"}");
+                var where = suggestion.DistanceKm is { } km
+                    ? $"{km:N0} km"
+                    : string.Empty;
+
+                Console.WriteLine(
+                    $"    {suggestion.Person.Name,-34} {tier,-14} {suggestion.Person.Gender ?? "-",-3} {where}");
             }
 
             Console.WriteLine();
@@ -76,6 +89,14 @@ internal static class PartyCommands
 
         Console.WriteLine($"  total: {plan.Count} ({plan.Female} F, {plan.Male} M, {plan.UnrecordedGender} unrecorded)");
         Console.WriteLine();
+
+        if (!everyone && venue is null)
+        {
+            Console.WriteLine(
+                "  note: no coordinates for the venue, so distance did not affect the order.");
+            Console.WriteLine("        Run 'sg geo --resolve' to look them up.");
+            Console.WriteLine();
+        }
 
         foreach (var note in plan.Notes)
         {

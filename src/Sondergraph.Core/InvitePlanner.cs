@@ -23,13 +23,17 @@ public sealed record PartyPlanOptions(
     double FemaleShare = 0.51,
     int Capacity = 20,
     int Waves = 3,
-    int Seed = 1);
+    int Seed = 1,
+    /// <summary>Where the party is, when its coordinates are known.</summary>
+    GeoPlace? Venue = null,
+    /// <summary>Coordinates for the places people live, so distance can be scored.</summary>
+    Gazetteer? Gazetteer = null);
 
 /// <summary>One suggested invite, with why it was suggested.</summary>
 /// <param name="Person">The contact.</param>
 /// <param name="Wave">1-based wave number.</param>
 /// <param name="Weight">Selection weight from their tier, higher meaning closer.</param>
-public sealed record InviteSuggestion(Person Person, int Wave, double Weight)
+public sealed record InviteSuggestion(Person Person, int Wave, double Weight, double? DistanceKm = null)
 {
     /// <summary>The tier that produced the weight.</summary>
     public string TierLabel => ContactTierNames.ToLabel(Person.Tier);
@@ -82,6 +86,39 @@ public static class InvitePlanner
     /// deliberately nonzero, because 1,798 of 1,822 contacts here are unrated and excluding
     /// them would leave almost nothing to suggest.
     /// </remarks>
+    /// <summary>
+    /// How strongly distance reduces a person's chance of being suggested.
+    /// </summary>
+    /// <remarks>
+    /// A quartering of weight every 50 km. Chosen so the ordering is felt within a city and
+    /// its suburbs rather than only between countries: at 100 km the penalty is 16x, which
+    /// puts a nearby acquaintance above a distant close friend, which is the intended effect
+    /// for a party you expect people to travel to.
+    /// </remarks>
+    public const double DistanceHalfLifeKm = 50;
+
+    /// <summary>
+    /// Combined weight: how well the user knows them, decayed by how far away they live.
+    /// </summary>
+    /// <remarks>
+    /// Distance only applies when both the person's place and the venue resolve to
+    /// coordinates. Anyone whose place is unknown keeps their tier weight, so missing
+    /// coordinate data never silently excludes them.
+    /// </remarks>
+    public static double WeightFor(ContactTier tier, double? distanceKm = null)
+    {
+        var baseWeight = WeightFor(tier);
+
+        if (distanceKm is null)
+        {
+            return baseWeight;
+        }
+
+        var decay = Math.Pow(0.5, distanceKm.Value / DistanceHalfLifeKm);
+        return baseWeight * Math.Max(decay, 0.01);
+    }
+
+    /// <summary>Selection weight by relationship tier alone.</summary>
     public static double WeightFor(ContactTier tier) => tier switch
     {
         ContactTier.Family => 1.5,
@@ -141,8 +178,8 @@ public static class InvitePlanner
                     $"wave {wave}: only {availableMen.Count} man/men available, {wantedMen} suggested");
             }
 
-            chosen.AddRange(Draw(availableWomen, takeWomen, wave, options.Seed + (wave * 31)));
-            chosen.AddRange(Draw(availableMen, takeMen, wave, options.Seed + (wave * 37)));
+            chosen.AddRange(Draw(availableWomen, takeWomen, wave, options.Seed + (wave * 31), options));
+            chosen.AddRange(Draw(availableMen, takeMen, wave, options.Seed + (wave * 37), options));
 
             // Fill any shortfall from the remaining pool, unrecorded gender included, so a
             // wave is not left half-empty when eligible people exist.
@@ -156,7 +193,7 @@ public static class InvitePlanner
 
                 // Materialised: Draw returns a lazy sequence, and .Count on it would be a
                 // method group rather than the number of items.
-                var topUp = Draw(spare, Math.Min(options.Capacity - filled, spare.Count), wave, options.Seed + (wave * 41));
+                var topUp = Draw(spare, Math.Min(options.Capacity - filled, spare.Count), wave, options.Seed + (wave * 41), options);
 
                 chosen.AddRange(topUp);
 
@@ -254,11 +291,22 @@ public static class InvitePlanner
     /// strange party. The seed makes a plan reproducible, so a suggestion can be discussed and
     /// re-examined.
     /// </remarks>
+    /// <summary>Distance from the venue to where a person lives, or null when unknown.</summary>
+    /// <remarks>
+    /// Null rather than a penalty when coordinates are missing: a person whose city has not
+    /// been geocoded should not be pushed to the bottom of every list.
+    /// </remarks>
+    private static double? Distance(PartyPlanOptions options, Person person) =>
+        options.Venue is null || options.Gazetteer is null
+            ? null
+            : options.Gazetteer.Distance(person, options.Venue);
+
     private static List<InviteSuggestion> Draw(
         List<Person> pool,
         int count,
         int wave,
-        int seed)
+        int seed,
+        PartyPlanOptions options)
     {
         if (count <= 0 || pool.Count == 0)
         {
@@ -271,7 +319,7 @@ public static class InvitePlanner
 
         for (var i = 0; i < count && remaining.Count > 0; i++)
         {
-            var weights = remaining.Select(p => WeightFor(p.Tier)).ToList();
+            var weights = remaining.Select(p => WeightFor(p.Tier, Distance(options, p))).ToList();
             var total = weights.Sum();
 
             // Everyone left has zero weight; take them in order rather than looping forever.
@@ -281,7 +329,7 @@ public static class InvitePlanner
 
             var person = remaining[pick];
             remaining.RemoveAt(pick);
-            drawn.Add(new InviteSuggestion(person, wave, WeightFor(person.Tier)));
+            drawn.Add(new InviteSuggestion(person, wave, WeightFor(person.Tier), Distance(options, person)));
         }
 
         return drawn;

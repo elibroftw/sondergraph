@@ -337,6 +337,28 @@ public sealed record Person
     /// </remarks>
     public string? GenderSource { get; init; }
 
+    /// <summary>
+    /// Whether the name is a placeholder rather than a name.
+    /// </summary>
+    /// <remarks>
+    /// A Twitter import cannot supply names - the archive carries only numeric account ids -
+    /// so those records arrive named after their id. Detected by shape rather than by
+    /// platform: a name of digits is not a name whatever produced it, and a platform check
+    /// would silently stop working for the next source with the same problem.
+    /// </remarks>
+    public bool HasPlaceholderName =>
+        !string.IsNullOrWhiteSpace(Name) && Name.All(char.IsAsciiDigit);
+
+    /// <summary>
+    /// Whether this record needs manual attention: a placeholder name, no gender, or both.
+    /// </summary>
+    /// <remarks>
+    /// Exists so there is one place to look for contacts that are still incomplete, instead
+    /// of needing three separate queries and the knowledge of which they are.
+    /// </remarks>
+    public bool NeedsFixing =>
+        HasPlaceholderName || string.IsNullOrWhiteSpace(Gender);
+
     /// <summary>Whether the recorded gender was inferred rather than stated.</summary>
     public bool GenderWasInferred =>
         string.Equals(GenderSource, "inferred", StringComparison.OrdinalIgnoreCase);

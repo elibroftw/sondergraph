@@ -2248,3 +2248,11 @@ ul.plain a,
   background: var(--hover);
   text-decoration: underline;
 }
+
+/* A toggle that is on, as opposed to a button that opens a view. */
+.link-toggle.on {
+  background: var(--accent-soft);
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent-bright);
+}

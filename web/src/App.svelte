@@ -18,6 +18,7 @@
   let tier = $state('all')
   let platform = $state('all')
   let place = $state('all')
+  let needsFixing = $state(false)
   let places = $state<{ value: string; count: number }[]>([])
   let selectedId = $state<string | null>(null)
   let selected = $state<PersonDetail | null>(null)
@@ -50,7 +51,7 @@
     error = null
 
     try {
-      const page = await api.people(query, tier, platform, place)
+      const page = await api.people(query, tier, platform, place, needsFixing)
       contacts = page.people
       total = page.total
     } catch (e) {
@@ -205,7 +206,7 @@
   const queryTier = $derived(/\b(?:tier|relationship|rel):("?)([a-z-]+)\1/i.exec(query)?.[2]?.toLowerCase())
 
   const activeFilters = $derived(
-    [platform !== 'all', place !== 'all', tier !== 'all',
+    [platform !== 'all', place !== 'all', tier !== 'all', needsFixing,
      queryPlatform !== undefined, queryTier !== undefined]
       .filter(Boolean).length,
   )
@@ -220,6 +221,7 @@
     platform = 'all'
     place = 'all'
     tier = 'all'
+    needsFixing = false
     loadContacts()
   }
 
@@ -346,6 +348,15 @@
           {showLinks ? 'Hide possible links' : 'Review possible links…'}
         </button>
 
+        <button
+          class="link-toggle"
+          class:on={needsFixing}
+          onclick={() => { needsFixing = !needsFixing; loadContacts() }}
+          title="Contacts with no gender, or named after an imported id"
+        >
+          Needs fixing
+        </button>
+
         <button class="link-toggle" onclick={() => (showGuests = true)}>Party planner</button>
         <button class="link-toggle" onclick={() => (showGraph = true)}>Network</button>
       </div>
@@ -374,7 +385,7 @@
           <p class="muted">Loading…</p>
         {:else if contacts.length === 0}
           <p class="muted">
-            {query || tier !== 'all' || platform !== 'all' || place !== 'all'
+            {query || tier !== 'all' || platform !== 'all' || place !== 'all' || needsFixing
               ? 'No one matches that filter.'
               : 'No contacts yet. Import an export with: sg ingest parse <path>'}
           </p>

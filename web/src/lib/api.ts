@@ -28,6 +28,8 @@ export interface PersonSummary {
   howWeMetLabel: string
   gender: string | null
   friendsWith: string[]
+  needsFixing: boolean
+  placeholderName: boolean
   phones: string[]
   emails: string[]
   locations: LocationSummary[]
@@ -244,6 +246,7 @@ export const api = {
     tier: string,
     platform = 'all',
     place = 'all',
+    fixes = false,
     signal?: AbortSignal,
   ) => {
     const params = new URLSearchParams()
@@ -262,6 +265,10 @@ export const api = {
 
     if (place && place !== 'all') {
       params.set('place', place)
+    }
+
+    if (fixes) {
+      params.set('fixes', 'true')
     }
 
     const suffix = params.toString()

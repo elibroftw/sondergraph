@@ -767,6 +767,7 @@ public static class SondergraphEndpoints
         string? tier,
         string? platform,
         string? place,
+        bool? fixes,
         int? limit)
     {
         var store = provider.Store();
@@ -807,6 +808,13 @@ public static class SondergraphEndpoints
         if (!string.IsNullOrWhiteSpace(place) && place != "all")
         {
             query = query with { Places = [place.Trim()] };
+        }
+
+        // "Needs fixing" is not a search term but a computed property, so it is applied
+        // directly rather than through SearchQuery.
+        if (fixes == true)
+        {
+            people = people.Where(p => p.NeedsFixing);
         }
 
         if (!query.IsEmpty)
@@ -1646,6 +1654,8 @@ public static class SondergraphEndpoints
         howWeMetLabel = ConnectionKinds.Display(person.HowWeMet),
         gender = person.Gender,
         friendsWith = person.FriendsWith,
+        needsFixing = person.NeedsFixing,
+        placeholderName = person.HasPlaceholderName,
         phones = person.Phones,
         emails = person.Emails,
         locations = person.Locations.Select(l => new
@@ -1680,6 +1690,8 @@ public static class SondergraphEndpoints
         howWeMetLabel = ConnectionKinds.Display(person.HowWeMet),
         gender = person.Gender,
         friendsWith = person.FriendsWith,
+        needsFixing = person.NeedsFixing,
+        placeholderName = person.HasPlaceholderName,
         phones = person.Phones,
         emails = person.Emails,
         tags = person.Tags,

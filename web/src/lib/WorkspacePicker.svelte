@@ -51,9 +51,14 @@
   }
 
   function shorten(value: string): string {
-    // Show the last two segments: a full path does not fit in a header.
+    // Show enough of the tail to recognise the workspace. Two segments was too little:
+    // "…/Documents/Sonder Graph Data" is already the useful part, and "…/Sonder Graph Data"
+    // alone is ambiguous when several workspaces share a parent name.
+    //
+    // The button is capped by CSS and ellipsises as a last resort, so showing more here is
+    // safe - the layout degrades rather than overflowing.
     const parts = value.split('/').filter(Boolean)
-    return parts.length > 2 ? '…/' + parts.slice(-2).join('/') : value
+    return parts.length > 4 ? '…/' + parts.slice(-4).join('/') : value
   }
 </script>
 

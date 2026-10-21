@@ -72,20 +72,23 @@
     }
   }
 
-  let activeIndex = $state(0)
-  let frameKey = $state(0)
-  let frameState = $state<'loading' | 'loaded' | 'blocked'>('loading')
-  let timer: ReturnType<typeof setTimeout> | undefined
-
+  /**
+   * Builds a profile URL from an account.
+   *
+   * Prefers the URL the export gave us. Falls back to constructing one from the handle,
+   * because several sources (Instagram followers, Facebook friends) carry a handle but no
+   * URL, and a guessed URL is better than no link at all.
+   */
   function profileUrl(account: AccountSummary): string | null {
     if (account.profileUrl) {
-      // A few export rows carry a slug ending in a hyphen, which is a 404.
+      // A few LinkedIn export rows carry a slug ending in a hyphen, which is a 404.
       return account.profileUrl.replace(/[-/]+$/, '')
     }
 
     const handle = account.handle.replace(/^@/, '')
 
     if (!handle || /\s/.test(handle)) {
+      // A display name is not a handle; do not invent a URL that will 404.
       return null
     }
 
@@ -93,13 +96,15 @@
       case 'instagram':
         return `https://www.instagram.com/${handle}/`
       case 'linkedin':
+        // A LinkedIn handle is a slug; anything else (a trailing hyphen, punctuation) came
+        // from a different platform's handle and would produce a 404.
         return /^[a-z0-9][a-z0-9-]*[a-z0-9]$/i.test(handle)
           ? `https://www.linkedin.com/in/${handle}/`
           : null
       case 'mastodon':
         return handle.includes('@')
           ? `https://${handle.split('@').pop()}/@${handle.split('@')[0]}`
-          : null;
+          : null
       case 'bluesky':
         return `https://bsky.app/profile/${handle}`
       case 'facebook':
@@ -109,59 +114,17 @@
     }
   }
 
-  const active = $derived(accounts[activeIndex])
-  const url = $derived(active ? profileUrl(active) : null)
-
-  // Verified against the live sites: every platform this app ingests refuses framing.
-  const SILENT_BLOCKERS = new Set(['instagram', 'facebook', 'linkedin', 'mastodon', 'bluesky', 'telegram'])
-
-  const knownBlocked = $derived(
-    active !== undefined && SILENT_BLOCKERS.has(active.platform.toLowerCase()),
+  /** Accounts that resolve to a URL, in the order the person's accounts were recorded. */
+  const linked = $derived(
+    accounts
+      .map((account) => ({ account, url: profileUrl(account) }))
+      .filter((entry): entry is { account: AccountSummary; url: string } => entry.url !== null),
   )
 
-  function selectAccount(index: number) {
-    activeIndex = index
-    startTimer()
-  }
-
-  function startTimer() {
-    clearTimeout(timer)
-    frameState = 'loading'
-    frameKey += 1
-
-    if (!knownBlocked) {
-      timer = setTimeout(() => {
-        if (frameState === 'loading') {
-          frameState = 'blocked'
-        }
-      }, 5000)
-    }
-  }
-
-  function onLoad() {
-    clearTimeout(timer)
-    frameState = knownBlocked ? 'blocked' : 'loaded'
-  }
-
-  $effect(() => {
-    if (knownBlocked) {
-      clearTimeout(timer)
-      frameState = 'blocked'
-    }
-  })
-
-  let lastAccounts: unknown = $state(null)
-  $effect(() => {
-    if (accounts === lastAccounts) {
-      return
-    }
-
-    lastAccounts = accounts
-    activeIndex = 0
-    startTimer()
-  })
-
-  $effect(() => () => clearTimeout(timer))
+  /** Accounts with no usable URL: still worth showing, since the handle is the identifier. */
+  const unlinked = $derived(
+    accounts.filter((account) => profileUrl(account) === null),
+  )
 </script>
 
 <section class="socials">
@@ -170,64 +133,55 @@
   {#if accounts.length === 0}
     <p class="muted">No social accounts recorded.</p>
   {:else}
-    <div class="social-tabs" role="tablist" aria-label="Social accounts">
-      {#each accounts as account, index (account.platform + account.handle)}
-        <button
-          role="tab"
-          aria-selected={index === activeIndex}
-          class:active={index === activeIndex}
-          onclick={() => selectAccount(index)}
-        >
-          {platformLabel(account.platform)}
-        </button>
+    <!-- External links only. Embedding was tried and abandoned: every platform this app
+         ingests refuses to be framed (Instagram and Facebook send X-Frame-Options: DENY,
+         LinkedIn and Mastodon restrict frame-ancestors), so an iframe showed a blank box for
+         every real contact. Detecting that reliably is impossible from the parent page - the
+         browser fires load for a refused frame too - so the feature was a framed blank with
+         an apology underneath. A plain link is honest and always works. -->
+    <ul class="social-links">
+      {#each linked as entry (entry.account.platform + entry.account.handle)}
+        <li>
+          <a href={entry.url} target="_blank" rel="noreferrer noopener">
+            <span class="chip" style="--hue: {platformHue(entry.account.platform)}">
+              {platformLabel(entry.account.platform)}
+            </span>
+            <span class="social-handle">{entry.account.handle}</span>
+            <span class="social-arrow" aria-hidden="true">↗</span>
+          </a>
+
+          <!-- The remove control lives on the row it removes. A separate repeated list was
+               the obvious alternative and doubled the height of the section for no gain. -->
+          <button
+            class="account-remove"
+            title="Remove {entry.account.handle}"
+            aria-label="Remove {entry.account.platform} account {entry.account.handle}"
+            disabled={busy}
+            onclick={() => removeAccount(entry.account.platform, entry.account.handle)}
+          >×</button>
+        </li>
       {/each}
-    </div>
+    </ul>
 
-    {#if url}
-      <!-- Always available, whatever the iframe does. -->
-      <a class="social-open" href={url} target="_blank" rel="noreferrer noopener">
-        Open {platformLabel(active.platform)} profile ↗
-      </a>
-
-      <div class="social-frame">
-        {#if frameState === 'blocked' || knownBlocked}
-          <!-- The common case: the platform sends X-Frame-Options. Say so plainly and give
-               the real actions, rather than leaving an empty box. -->
-          <div class="social-blocked">
-            <p>
-              <strong>{platformLabel(active.platform)}</strong> does not allow being shown
-              inside another app.
-            </p>
-            <p class="muted">
-              This is the platform's choice, not a fault here. Open the profile in a tab and
-              keep this panel's details and notes beside it.
-            </p>
-            <div class="social-actions">
-              <a href={url} target="_blank" rel="noreferrer noopener">Open in a new tab ↗</a>
-            </div>
-          </div>
-        {:else}
-          {#key frameKey}
-            <iframe
-              src={url}
-              title="{personName} on {platformLabel(active.platform)}"
-              onload={onLoad}
-              referrerpolicy="no-referrer"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-              loading="lazy"
-            ></iframe>
-          {/key}
-
-          {#if frameState === 'loading'}
-            <p class="social-loading muted">Loading {platformLabel(active.platform)}…</p>
-          {/if}
-        {/if}
-      </div>
-    {:else}
-      <p class="muted">
-        No profile URL for this account. The handle is
-        <code>{active.handle}</code> — add one with a profile link if you know it.
-      </p>
+    {#if unlinked.length > 0}
+      <ul class="social-links social-unlinked">
+        {#each unlinked as account (account.platform + account.handle)}
+          <li>
+            <span class="chip" style="--hue: {platformHue(account.platform)}">
+              {platformLabel(account.platform)}
+            </span>
+            <span class="social-handle">{account.handle}</span>
+            <span class="muted social-note">no profile URL</span>
+            <button
+              class="account-remove"
+              title="Remove {account.handle}"
+              aria-label="Remove {account.platform} account {account.handle}"
+              disabled={busy}
+              onclick={() => removeAccount(account.platform, account.handle)}
+            >×</button>
+          </li>
+        {/each}
+      </ul>
     {/if}
   {/if}
 
@@ -265,23 +219,4 @@
     <button class="account-add-btn" onclick={() => (adding = true)}>+ Add account</button>
   {/if}
 
-  {#if accounts.length > 0}
-    <ul class="account-list" aria-label="Accounts that can be removed">
-      {#each accounts as account (account.platform + account.handle)}
-        <li>
-          <span class="chip" style="--hue: {platformHue(account.platform)}">
-            {platformLabel(account.platform)}
-          </span>
-          <span class="account-handle">{account.handle}</span>
-          <button
-            class="account-remove"
-            title="Remove {account.handle}"
-            aria-label="Remove {account.platform} account {account.handle}"
-            disabled={busy}
-            onclick={() => removeAccount(account.platform, account.handle)}
-          >×</button>
-        </li>
-      {/each}
-    </ul>
-  {/if}
 </section>

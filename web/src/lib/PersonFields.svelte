@@ -26,7 +26,6 @@
   // here beyond the current render, so a channel disappears as soon as its last user changes.
   // Stored as { value, label } so the select can show "WhatsApp" while writing "whatsapp".
   let channels = $state<{ value: string; label: string }[]>([])
-  let suggested = $state(false)
 
   let tagInput = $state('')
   let placeInput = $state('')
@@ -38,8 +37,11 @@
     api
       .channels()
       .then((result) => {
-        channels = result.inUse.map((c: Channel) => ({ value: c.value, label: c.label }))
-        suggested = result.suggested
+        // The server returns every selectable channel. Showing only in-use ones left a
+        // fresh workspace with a near-empty dropdown and no way to choose anything that had
+        // not already been picked - which, with the create-new flow gone, meant some
+        // channels were simply unreachable.
+        channels = result.channels.map((c) => ({ value: c.value, label: c.label }))
       })
       .catch(() => {
         channels = []
@@ -205,10 +207,6 @@
       {/if}
     </select>
   </div>
-
-  {#if suggested && channels.length > 0}
-    <p class="muted hint-line">Suggested until someone sets one.</p>
-  {/if}
 
 </section>
 

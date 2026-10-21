@@ -52,24 +52,58 @@ public static class PreferredChannels
         ["mastodon"] = "Mastodon",
         ["bluesky"] = "Bluesky",
         ["letter"] = "Letter",
+        ["meet"] = "In person",
     };
 
     /// <summary>
-    /// Channels suggested in an empty workspace, before anyone has chosen one.
+    /// The channels the dropdown offers.
     /// </summary>
     /// <remarks>
-    /// Only used to seed the dropdown when the derived list is empty, so a new user sees
-    /// something sensible instead of a blank select. Once any channel is in use, the derived
-    /// list takes over entirely and these suggestions stop appearing.
+    /// <para>
+    /// <b>This is the list of selectable channels, and it should be complete.</b> It exists as
+    /// a fixed set because the dropdown stopped offering a "create new" flow: with no way to
+    /// type a channel, anything absent here simply cannot be chosen. An earlier version
+    /// offered only five (email, signal, sms, whatsapp, instagram) and derived the rest from
+    /// usage, which meant Messenger was unselectable in practice - the list looked short
+    /// rather than wrong.
+    /// </para>
+    /// <para>
+    /// A channel the user has set that is not listed here is still added to the dropdown
+    /// alongside these, so nothing recorded becomes unreachable.
+    /// </para>
     /// </remarks>
-    public static IReadOnlyList<string> DefaultSuggestions { get; } =
+    public static IReadOnlyList<string> Selectable { get; } =
     [
-        "email",
-        "signal",
         "sms",
         "whatsapp",
         "instagram",
+        "messenger",
+        "signal",
+        "telegram",
+        "email",
+        "phone",
+        "discord",
+        "linkedin",
+        "facebook",
+        "mastodon",
+        "bluesky",
+        "matrix",
+        "letter",
+        "meet",
     ];
+
+    /// <summary>
+    /// Channels suggested in an empty workspace.
+    /// </summary>
+    /// <remarks>
+    /// Kept as an alias of <see cref="Selectable"/> so callers that treat the list as a
+    /// starting point keep working; the distinction between "suggested" and "available" no
+    /// longer earns its keep now that every known channel is choosable.
+    /// </remarks>
+    public static IReadOnlyList<string> DefaultSuggestions => Selectable;
+
+    /// <summary>Known display names, in the order they appear above.</summary>
+    public static IReadOnlyList<string> Known => DisplayNames.Keys.ToList();
 
     /// <summary>
     /// Normalises a channel for storage: trimmed, internal whitespace collapsed, lowercased.

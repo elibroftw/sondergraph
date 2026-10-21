@@ -88,7 +88,8 @@ export interface Channel {
 }
 
 export interface ChannelsResponse {
-  channels: string[]
+  /** Every selectable channel, labelled. Complete, not just what is in use. */
+  channels: { value: string; label: string }[]
   suggested: boolean
   inUse: Channel[]
 }

@@ -908,15 +908,26 @@ public static class SondergraphEndpoints
         var people = loaded.ValueOrThrow();
         var inUse = PreferredChannels.InUse(people);
 
+        // Every known channel is offered, plus anything already recorded that the list does
+        // not name. Offering only channels "in use" made the dropdown nearly empty in a fresh
+        // workspace and left no way to choose a channel nobody had picked yet - which, with
+        // the create-new flow removed, meant some channels were unreachable.
+        var selectable = PreferredChannels.Selectable
+            .Concat(inUse)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => PreferredChannels.Selectable.ToList().IndexOf(c) is var i && i >= 0 ? i : int.MaxValue)
+            .ThenBy(c => PreferredChannels.Display(c), StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
         return Results.Ok(new
         {
-            // When nobody has chosen a channel, offer sensible starters so a new workspace is
-            // not faced with an empty dropdown.
-            channels = inUse.Count > 0 ? inUse : PreferredChannels.DefaultSuggestions,
+            // Labelled, so the client does not need its own copy of the display names and
+            // cannot drift from the server's capitalisation.
+            channels = selectable.Select(c => new { value = c, label = PreferredChannels.Display(c) }),
 
-            // True when the list is a suggestion rather than derived from real usage, so the
-            // UI can say so.
-            suggested = inUse.Count == 0,
+            // Kept for the client's benefit: nothing here is now merely "suggested", since
+            // every channel is selectable, so this is always false.
+            suggested = false,
 
             inUse = inUse.Select(c => new
             {

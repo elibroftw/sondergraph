@@ -21,19 +21,27 @@ namespace Sondergraph.Api;
 /// </remarks>
 public sealed class WorkspaceProvider
 {
-    private readonly Lazy<Result<Workspace>> _workspace;
+    private readonly Lock _gate = new();
+    private Result<Workspace> _current;
+    private string? _configured;
 
     /// <summary>Creates a provider that resolves the workspace on first use.</summary>
     public WorkspaceProvider(IConfiguration configuration)
     {
-        var configured = configuration["workspace"]
+        _configured = configuration["workspace"]
             ?? Environment.GetEnvironmentVariable(Workspace.EnvironmentVariable);
 
-        _workspace = new Lazy<Result<Workspace>>(() => Workspace.Locate(configured));
+        _current = Workspace.Locate(_configured);
     }
 
     /// <summary>The resolved workspace, or a failure explaining how to create one.</summary>
-    public Result<Workspace> Resolve() => _workspace.Value;
+    public Result<Workspace> Resolve()
+    {
+        lock (_gate)
+        {
+            return _current;
+        }
+    }
 
     /// <summary>The person store, or a failure.</summary>
     public Result<PersonStore> Store()
@@ -43,6 +51,73 @@ public sealed class WorkspaceProvider
         return workspace.IsOk
             ? Result.Ok(new PersonStore(workspace.ValueOrThrow()))
             : Result.Fail<PersonStore>(workspace.Code, workspace.Message, workspace.Hint);
+    }
+
+    /// <summary>
+    /// Points the server at a different workspace.
+    /// </summary>
+    /// <param name="path">Directory holding a workspace, or a parent of one.</param>
+    /// <returns>The newly resolved workspace, or the reason it was refused.</returns>
+    /// <remarks>
+    /// <para>
+    /// The candidate is resolved and validated BEFORE it is adopted, so a bad path leaves the
+    /// server on the workspace it was already using. Swapping first and validating second
+    /// would leave every request failing after one mistyped directory.
+    /// </para>
+    /// <para>
+    /// Deliberately in-memory only. Persisting the choice would mean the server's data source
+    /// changes on the next launch because of something clicked months ago, which is a
+    /// surprising and hard-to-undo state. The path stays a startup decision; this endpoint is
+    /// for changing it within a session.
+    /// </para>
+    /// </remarks>
+    public Result<Workspace> Switch(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return Result.Fail<Workspace>(ErrorCode.WorkspaceNotFound, "A workspace path is required.");
+        }
+
+        var expanded = Expand(path.Trim());
+        var candidate = Workspace.Locate(expanded);
+
+        if (!candidate.IsOk)
+        {
+            return candidate;
+        }
+
+        lock (_gate)
+        {
+            _configured = expanded;
+            _current = candidate;
+            return _current;
+        }
+    }
+
+    /// <summary>Expands <c>~</c> and environment variables in a user-supplied path.</summary>
+    private static string Expand(string path)
+    {
+        var expanded = Environment.ExpandEnvironmentVariables(path);
+
+        if (expanded == "~" || expanded.StartsWith("~/", StringComparison.Ordinal))
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            expanded = home + expanded[1..];
+        }
+
+        return Path.GetFullPath(expanded);
+    }
+
+    /// <summary>The path the server was last told to use, for display.</summary>
+    public string? Configured
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _configured;
+            }
+        }
     }
 }
 
@@ -62,6 +137,16 @@ public static class SondergraphEndpoints
         var api = app.MapGroup("/api");
 
         api.MapGet("/health", Health);
+
+        // Switches the data source for this session. The UI needs this because the workspace
+        // was previously a startup-only decision: it came from --workspace or an environment
+        // variable, and a user running without either got whatever was in the current
+        // directory with no way to point the app elsewhere.
+        api.MapPost("/workspace", SwitchWorkspace);
+
+        // Directories the workspace picker can offer, so the user does not have to type an
+        // absolute path from memory.
+        api.MapGet("/workspace/browse", BrowseWorkspaces);
         api.MapGet("/stats", Stats);
         api.MapGet("/people", ListPeople);
         api.MapGet("/people/{id}", GetPerson);
@@ -146,6 +231,137 @@ public static class SondergraphEndpoints
                 hint = workspace.IsOk ? null : workspace.Hint,
             },
         });
+    }
+
+    private sealed record WorkspaceRequest(string? Path);
+
+    private static IResult SwitchWorkspace(WorkspaceProvider provider, WorkspaceRequest request)
+    {
+        var switched = provider.Switch(request.Path ?? string.Empty);
+
+        if (!switched.IsOk)
+        {
+            // A refused switch leaves the server on the workspace it was already using, so
+            // the error is informational rather than a broken session.
+            return Problem(switched.Code, switched.Message, switched.Hint);
+        }
+
+        var workspace = switched.ValueOrThrow();
+
+        return Results.Ok(new
+        {
+            ok = true,
+            root = workspace.Root,
+            data = workspace.DataDirectory,
+        });
+    }
+
+    /// <summary>
+    /// Lists a directory's subdirectories so the workspace picker can be navigated.
+    /// </summary>
+    /// <param name="path">Directory to list; the home directory when omitted.</param>
+    /// <remarks>
+    /// A picker rather than a bare text box: typing an absolute path from memory is the kind
+    /// of thing that fails silently, and the workspace is often several levels down.
+    /// </remarks>
+    private static IResult BrowseWorkspaces(string? path)
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var target = string.IsNullOrWhiteSpace(path) ? home : path.Trim();
+
+        if (target == "~" || target.StartsWith("~/", StringComparison.Ordinal))
+        {
+            target = home + target[1..];
+        }
+
+        string full;
+
+        try
+        {
+            full = Path.GetFullPath(Environment.ExpandEnvironmentVariables(target));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException)
+        {
+            return Results.Json(
+                new { error = "That path is not valid." },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (!Directory.Exists(full))
+        {
+            return Results.Json(
+                new { error = $"'{full}' is not a directory." },
+                statusCode: StatusCodes.Status404NotFound);
+        }
+
+        var entries = new List<(string Name, string Path, bool IsWorkspace)>();
+
+        try
+        {
+            foreach (var directory in Directory.EnumerateDirectories(full))
+            {
+                var name = Path.GetFileName(directory);
+
+                // A workspace is never inside a hidden or generated directory, and listing
+                // them makes the picker unusable in a repository or a home directory.
+                if (name.StartsWith('.') || name is "node_modules" or "bin" or "obj")
+                {
+                    continue;
+                }
+
+                entries.Add((name, directory, IsWorkspace(directory)));
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Results.Json(
+                new { error = $"Permission denied reading '{full}'." },
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(new
+        {
+            path = full,
+            parent = Path.GetDirectoryName(full),
+            isWorkspace = IsWorkspace(full),
+            directories = entries
+                .OrderBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase)
+                .Select(e => new { name = e.Name, path = e.Path, isWorkspace = e.IsWorkspace }),
+        });
+    }
+
+    /// <summary>Whether a directory is an initialised workspace.</summary>
+    /// <remarks>
+    /// The marker is <c>data/.sondergraph</c> and it is a DIRECTORY, so this must test
+    /// Directory.Exists. Using File.Exists was always false, which made the picker report
+    /// every directory as "not a workspace" and hide the button that switches to it.
+    ///
+    /// Mirrors Workspace.Locate, which walks upwards, so a subdirectory of a workspace is
+    /// flagged too - someone browsing into the workspace's own data folder should still be
+    /// able to pick it.
+    /// </remarks>
+    private static bool IsWorkspace(string directory)
+    {
+        try
+        {
+            var current = new DirectoryInfo(Path.GetFullPath(directory));
+
+            while (current is not null)
+            {
+                if (Directory.Exists(Path.Combine(current.FullName, "data", ".sondergraph")))
+                {
+                    return true;
+                }
+
+                current = current.Parent;
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+
+        return false;
     }
 
     private static IResult Stats(WorkspaceProvider provider)

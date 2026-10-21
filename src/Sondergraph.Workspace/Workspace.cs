@@ -64,7 +64,16 @@ public sealed class Workspace
     /// <returns>The workspace, or a failure carrying a hint.</returns>
     public static Result<Workspace> Locate(string? startDirectory = null)
     {
-        var overridden = Environment.GetEnvironmentVariable(EnvironmentVariable);
+        // An explicit argument wins over the environment variable.
+        //
+        // It previously did not: the override was honoured even when a caller passed a path,
+        // so Workspace.Locate("/somewhere/else") quietly returned the workspace named by
+        // SONDERGRAPH_WORKSPACE. That made the web UI's "switch data directory" report
+        // success while changing nothing, and it is the same trap for any other caller.
+        var overridden = string.IsNullOrWhiteSpace(startDirectory)
+            ? Environment.GetEnvironmentVariable(EnvironmentVariable)
+            : null;
+
         if (!string.IsNullOrWhiteSpace(overridden))
         {
             var resolved = Path.GetFullPath(overridden);

@@ -353,6 +353,30 @@ export const api = {
       }[]
     }>(`/api/people/${encodeURIComponent(id)}/links`, signal),
 
+  /** Points the server at a different workspace, validated before it is adopted. */
+  switchWorkspace: async (path: string): Promise<{ root: string; data: string }> => {
+    const response = await fetch('/api/workspace', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    })
+
+    if (!response.ok) {
+      throw await toError(response)
+    }
+
+    return (await response.json()) as { root: string; data: string }
+  },
+
+  /** Lists a directory's children, so the workspace picker can be navigated. */
+  browse: (path?: string, signal?: AbortSignal) =>
+    request<{
+      path: string
+      parent: string | null
+      isWorkspace: boolean
+      directories: { name: string; path: string; isWorkspace: boolean }[]
+    }>(`/api/workspace/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal),
+
   /** Places recorded on any person, most-used first. Derived, never stored. */
   places: (signal?: AbortSignal) =>
     request<{ total: number; places: { value: string; count: number }[] }>('/api/places', signal),

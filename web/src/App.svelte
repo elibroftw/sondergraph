@@ -3,6 +3,7 @@
   import { initials, people as peopleLabel, platformHue, platformLabel, resolvePlatform, SOURCES, TIERS } from './lib/format'
   import PersonPanel from './lib/PersonPanel.svelte'
   import LinkReview from './lib/LinkReview.svelte'
+  import WorkspacePicker from './lib/WorkspacePicker.svelte'
 
   // ---- state -------------------------------------------------------------------------
 
@@ -157,6 +158,15 @@
     return e instanceof Error ? e.message : String(e)
   }
 
+  // Re-read everything after the data source changes, or the list would keep showing the
+  // previous workspace until the next navigation.
+  function reloadAll() {
+    selectedId = null
+    detailLoading = false
+    loadShell()
+    loadContacts()
+  }
+
   $effect(() => {
     loadShell()
     loadContacts()
@@ -169,6 +179,11 @@
       <h1>sondergraph</h1>
       <p class="tagline">everything, all at once</p>
     </div>
+
+    <WorkspacePicker
+      current={health?.workspace.ok ? health.workspace.root : null}
+      onswitched={reloadAll}
+    />
 
     {#if stats}
       <dl class="stats">

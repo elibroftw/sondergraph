@@ -80,8 +80,14 @@ public sealed class WorkspaceDiscoveryTests : IDisposable
     }
 
     [Fact]
-    public void Environment_override_wins_over_discovery()
+    public void Environment_override_wins_over_discovery_but_not_over_an_explicit_path()
     {
+        // Precedence: explicit argument, then the environment variable, then discovery
+        // upwards from the current directory.
+        //
+        // The environment variable used to beat even an explicit argument, which meant
+        // Locate("/elsewhere") silently returned the overridden workspace. The web UI's
+        // "switch data directory" then reported success while changing nothing.
         var discovered = InitialiseAt("discovered");
         var overridden = InitialiseAt("overridden");
 
@@ -89,10 +95,15 @@ public sealed class WorkspaceDiscoveryTests : IDisposable
         {
             Environment.SetEnvironmentVariable(Workspace.EnvironmentVariable, overridden.Root);
 
-            var found = Workspace.Locate(discovered.Root);
+            // No argument: the override applies.
+            var byOverride = Workspace.Locate();
+            Assert.True(byOverride.IsOk, byOverride.Message);
+            Assert.Equal(overridden.Root, byOverride.ValueOrThrow().Root);
 
-            Assert.True(found.IsOk, found.Message);
-            Assert.Equal(overridden.Root, found.ValueOrThrow().Root);
+            // An explicit argument wins.
+            var byArgument = Workspace.Locate(discovered.Root);
+            Assert.True(byArgument.IsOk, byArgument.Message);
+            Assert.Equal(discovered.Root, byArgument.ValueOrThrow().Root);
         }
         finally
         {
@@ -109,7 +120,9 @@ public sealed class WorkspaceDiscoveryTests : IDisposable
         {
             Environment.SetEnvironmentVariable(Workspace.EnvironmentVariable, missing);
 
-            var found = Workspace.Locate(_tree.Root);
+            // No explicit argument, so the override is what gets resolved - and it points
+            // nowhere, which must be reported rather than silently falling back.
+            var found = Workspace.Locate();
 
             Assert.False(found.IsOk);
             Assert.Equal(ErrorCode.WorkspaceNotFound, found.Code);

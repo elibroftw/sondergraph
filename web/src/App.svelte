@@ -60,6 +60,75 @@
     }
   }
 
+  /**
+   * Moves the selection up or down the contact list.
+   *
+   * Wraps at both ends so a long list can be walked without overshooting. Selection follows
+   * the list order currently on screen, which is tier and reachability order, so the arrows
+   * move through contacts in the order the user sees them rather than alphabetically.
+   */
+  function moveSelection(delta: number) {
+    if (contacts.length === 0) {
+      return
+    }
+
+    const current = contacts.findIndex((c) => c.id === selectedId)
+
+    // With nothing selected, Down starts at the top and Up starts at the bottom, so the
+    // first keypress does not skip past a contact. Treating both as zero made Up-from-nothing
+    // land on the first row, which reads as a bug rather than a wrap.
+    let next: number
+
+    if (current < 0) {
+      next = delta > 0 ? 0 : contacts.length - 1
+    } else {
+      next = (current + delta + contacts.length) % contacts.length
+    }
+
+    selectPerson(contacts[next].id)
+
+    // Keep the selected row in view; otherwise the arrows appear to do nothing once the
+    // selection reaches past the bottom of the scroll area.
+    requestAnimationFrame(() => {
+      document
+        .querySelector(`.list li button[data-person-id="${contacts[next].id}"]`)
+        ?.scrollIntoView({ block: 'nearest' })
+    })
+  }
+
+  /**
+   * Whether a keystroke belongs to a text field rather than to the list.
+   *
+   * Without this the arrows would move the selection while someone is editing a note or
+   * choosing from a dropdown — the most likely way to introduce a bug that only shows up
+   * once editing is already in progress.
+   */
+  function isTypingTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) {
+      return false
+    }
+
+    const tag = target.tagName
+
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable
+  }
+
+  function onGlobalKeydown(event: KeyboardEvent) {
+    // Leave the browser's own behaviour alone for modified keys, and for anything typed
+    // into a field.
+    if (event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) {
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      moveSelection(1)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      moveSelection(-1)
+    }
+  }
+
   async function selectPerson(id: string) {
     selectedId = id
     detailLoading = true
@@ -172,6 +241,14 @@
   $effect(() => {
     loadShell()
     loadContacts()
+  })
+
+  // window rather than a focusable list element: the contact list is not focusable today,
+  // and making it so would change tab order for keyboard users in ways unrelated to this
+  // feature.
+  $effect(() => {
+    window.addEventListener('keydown', onGlobalKeydown)
+    return () => window.removeEventListener('keydown', onGlobalKeydown)
   })
 </script>
 
@@ -302,6 +379,7 @@
               <li>
                 <button
                   class:selected={person.id === selectedId}
+                  data-person-id={person.id}
                   onclick={() => selectPerson(person.id)}
                 >
                   <span class="avatar" aria-hidden="true">{initials(person.name)}</span>

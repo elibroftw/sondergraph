@@ -173,7 +173,7 @@
 
 <div class="party-view">
   <header class="party-head">
-    <h1>Parties</h1>
+    <h1>Party planner</h1>
     <div class="party-head-actions">
       <button onclick={() => (creating = true)}>New party</button>
       <button class="party-close" onclick={onclose}>Back to contacts</button>

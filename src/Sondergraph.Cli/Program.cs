@@ -37,8 +37,12 @@ public static class Program
             "met" or "via" => EditCommands.Met(args),
             "purge" => EditCommands.Purge(args),
             "gender" => EditCommands.Gender(args),
-            "guest" => GuestCommands.Run(args),
-            "party" => PartyCommands.Run(args),
+            // "sg party" is the party planner: list/show/add/remove manage parties, and
+            // "sg party suggest" produces invite suggestions for one. Previously "party"
+            // only suggested and the planner lived under "guest", which made the rename a
+            // lie at the command line.
+            "party" => PartyCommands.Dispatch(args),
+            "guest" => PartyCommands.Dispatch(args),
             "geo" => GeoCommands.Run(args),
             "rename" => EditCommands.Rename(args),
             "graft" or "merge" => MergeCommands.Graft(args),
@@ -126,7 +130,7 @@ public static class Program
         Console.WriteLine("  gender <person> [g]    Record a person's gender (--clear to unset).");
         Console.WriteLine("  gender suggest         Guess genders from names (preview; --yes to apply).");
         Console.WriteLine("  gender inferred        Clear inferred genders (--clear --yes).");
-        Console.WriteLine("  guest <list|add|show>  Create and inspect guest lists.");
+        Console.WriteLine("  party <list|show|add>  Party planner: create and edit parties.");
         Console.WriteLine("  party --here <place>   Suggest invites by location, tier and gender balance.");
         Console.WriteLine("  party --everyone       Suggest invites from the whole graph.");
         Console.WriteLine("  geo --resolve          Look up coordinates for the places in use.");

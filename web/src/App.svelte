@@ -265,7 +265,7 @@
           {showLinks ? 'Hide possible links' : 'Review possible links…'}
         </button>
 
-        <button class="link-toggle" onclick={() => (showGuests = true)}>Parties…</button>
+        <button class="link-toggle" onclick={() => (showGuests = true)}>Party planner</button>
       </div>
 
       {#if activeFilters > 0}

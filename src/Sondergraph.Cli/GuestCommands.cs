@@ -5,7 +5,7 @@ using Sondergraph.Workspaces;
 namespace Sondergraph.Cli;
 
 /// <summary>
-/// Guest list commands.
+/// Party planner commands.
 /// </summary>
 /// <remarks>
 /// Thin by design (ADR 0001): parsing arguments and printing results, with the work done in
@@ -13,7 +13,7 @@ namespace Sondergraph.Cli;
 /// </remarks>
 internal static class GuestCommands
 {
-    /// <summary>Dispatches <c>sg guest ...</c>.</summary>
+    /// <summary>Dispatches <c>sg party ...</c>.</summary>
     internal static int Run(string[] args)
     {
         var sub = args.Skip(1).FirstOrDefault(a => !a.StartsWith('-')) ?? "list";
@@ -30,10 +30,10 @@ internal static class GuestCommands
 
     private static int Usage()
     {
-        Console.WriteLine("sg guest list                     List guest lists.");
-        Console.WriteLine("sg guest show <list>              Show a list grouped by gender.");
-        Console.WriteLine("sg guest add <list> <person...>   Create or extend a list.");
-        Console.WriteLine("sg guest remove <list> <person>   Remove someone from a list.");
+        Console.WriteLine("sg party list                       List parties.");
+        Console.WriteLine("sg party show <name>                Show a party grouped by gender.");
+        Console.WriteLine("sg party add <name> <person...>     Create or add guests to a party.");
+        Console.WriteLine("sg party remove <name> <person>     Remove a guest from a party.");
         return ExitCode.Usage;
     }
 
@@ -102,11 +102,11 @@ internal static class GuestCommands
 
         if (lists.ValueOrThrow().Count == 0)
         {
-            Console.WriteLine("No guest lists yet. Create one with: sg guest add <name> <person>...");
+            Console.WriteLine("No parties yet. Create one with: sg party add <name> <person>...");
             return ExitCode.Success;
         }
 
-        Console.WriteLine($"Guest lists ({lists.ValueOrThrow().Count}):");
+        Console.WriteLine($"Parties ({lists.ValueOrThrow().Count}):");
 
         foreach (var list in lists.ValueOrThrow())
         {
@@ -122,7 +122,7 @@ internal static class GuestCommands
 
         if (positional.Count == 0)
         {
-            Console.Error.WriteLine("sg: usage: sg guest show <list>");
+            Console.Error.WriteLine("sg: usage: sg party show <name>");
             return ExitCode.Usage;
         }
 
@@ -191,7 +191,7 @@ internal static class GuestCommands
 
         if (positional.Count < 2)
         {
-            Console.Error.WriteLine("sg: usage: sg guest add <list> <person> [<person>...]");
+            Console.Error.WriteLine("sg: usage: sg party add <name> <person> [<person>...]");
             return ExitCode.Usage;
         }
 
@@ -259,7 +259,7 @@ internal static class GuestCommands
 
         if (positional.Count < 2)
         {
-            Console.Error.WriteLine("sg: usage: sg guest remove <list> <person>");
+            Console.Error.WriteLine("sg: usage: sg party remove <name> <person>");
             return ExitCode.Usage;
         }
 

@@ -13,6 +13,25 @@ namespace Sondergraph.Cli;
 /// </remarks>
 internal static class PartyCommands
 {
+    /// <summary>
+    /// Routes <c>sg party ...</c> to the planner or to suggestions.
+    /// </summary>
+    /// <remarks>
+    /// "sg guest" is kept as an alias so existing habits and scripts keep working; it routes
+    /// to the same place.
+    /// </remarks>
+    internal static int Dispatch(string[] args)
+    {
+        var subcommand = args.Skip(1).FirstOrDefault(a => !a.StartsWith('-'));
+
+        return subcommand switch
+        {
+            null or "list" or "ls" or "show" or "add" or "create" or "remove" or "rm" =>
+                GuestCommands.Run(args),
+            "suggest" => Run(args),
+            _ => Run(args),
+        };
+    }
     internal static int Run(string[] args)
     {
         var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");

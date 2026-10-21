@@ -1662,7 +1662,7 @@ ul.plain a,
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-/* ── Guest lists ──────────────────────────────────────────────────────────────── */
+/* ── Party planner ─────────────────────────────────────────────────────────────── */
 
 .toolbar-actions {
   display: flex;
@@ -1836,7 +1836,7 @@ ul.plain a,
   min-width: 0;
 }
 
-/* ── Party view ───────────────────────────────────────────────────────────────────
+/* ── Party planner ────────────────────────────────────────────────────────────────
    A full-screen route rather than a panel above the contact list. Organising a party is
    a different task from browsing contacts and deserves the whole window. */
 

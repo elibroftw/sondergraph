@@ -432,7 +432,7 @@
         {#if detailLoading}
           <p class="muted">Loading…</p>
         {:else if selected}
-          <PersonPanel person={selected} onchanged={refreshAfterEdit} />
+          <PersonPanel person={selected} onchanged={refreshAfterEdit} onselect={selectPerson} />
         {:else}
           <p class="muted">Select a contact to see everything known about them.</p>
         {/if}

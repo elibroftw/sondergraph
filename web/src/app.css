@@ -2226,3 +2226,25 @@ ul.plain a,
   background: var(--accent);
   color: var(--accent-contrast);
 }
+
+/* A listed friend opens their own record, so the name is a button rather than plain text.
+   Scoped as ".friends-list .friends-name" because the generic ".friends-list button" rule
+   above is more specific than a bare class and would otherwise win on colour. */
+.friends-list .friends-name {
+  flex: 1;
+  text-align: left;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.friends-list .friends-name:hover {
+  color: var(--accent-bright);
+  background: var(--hover);
+  text-decoration: underline;
+}

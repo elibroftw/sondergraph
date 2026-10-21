@@ -12,6 +12,7 @@
     gender,
     friendsWith,
     onchange,
+    onselect,
   }: {
     personId: string
     tier: string
@@ -22,6 +23,7 @@
     gender: string | null
     friendsWith: string[]
     onchange: () => void
+    onselect: (id: string) => void
   } = $props()
 
   // Friend ids resolved to names, for display. Loaded lazily because the list is only
@@ -258,7 +260,9 @@
   <ul class="friends-list">
     {#each friends as id (id)}
       <li>
-        <span class="friends-name">{readableName(friendNames[id] ?? id)}</span>
+        <button class="friends-name" onclick={() => onselect(id)} title="Open {friendNames[id] ?? id}">
+          {readableName(friendNames[id] ?? id)}
+        </button>
         <button disabled={friendBusy} onclick={() => unlinkFriend(id)} aria-label="Unlink {id}">×</button>
       </li>
     {/each}

@@ -48,7 +48,19 @@
 
   // `onchanged` lets the parent re-fetch the detail after an edit, so the panel always shows
   // what the server actually stored rather than an optimistic local guess.
-  let { person, onchanged = () => {} }: { person: PersonDetail; onchanged?: () => void } = $props()
+  let {
+    person,
+    onchanged = () => {},
+    onselect = () => {},
+  }: {
+    person: PersonDetail
+    onchanged?: () => void
+    /**
+     * Navigates to another contact. A friend listed here is a real person with their own
+     * record, so clicking one should open it rather than force a search.
+     */
+    onselect?: (id: string) => void
+  } = $props()
 </script>
 
 <div class="panel">
@@ -96,6 +108,7 @@
     howWeMet={person.howWeMet}
     gender={person.gender}
     friendsWith={person.friendsWith ?? []}
+    onselect={onselect}
     onchange={onchanged}
   />
 

@@ -256,13 +256,19 @@ public static class SondergraphEndpoints
         // but it buried a best friend under whoever happened to have a phone number. The
         // user stated the intended order explicitly.
         //
-        // Contactability is kept as the tie-break WITHIN a tier, because when two people are
-        // equally close, the one you can actually reach is the more useful row.
+        // Reachability decides WITHIN a tier, because when two people are equally close the
+        // one you can actually contact is the more useful row. Phone and Signal rank together
+        // at the top: both mean a direct, personal route to the person. Email comes next, then
+        // accounts that are only a handle, then nothing.
+        //
+        // Reachability.Rank is a single value rather than a chain of ThenBy calls so the
+        // precedence is stated once and cannot be reordered by accident. A chain of four
+        // boolean tie-breaks also sorts by "number of qualifying facts" rather than by the
+        // intended priority.
         var materialised = people
             .OrderBy(p => RelationshipOrder.Rank(p.Tier))
-            .ThenByDescending(p => p.Phones.Count > 0)
+            .ThenBy(p => Reachability.Rank(p))
             .ThenByDescending(p => p.Sources.Distinct(StringComparer.OrdinalIgnoreCase).Count())
-            .ThenByDescending(p => p.Emails.Count > 0)
             .ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 

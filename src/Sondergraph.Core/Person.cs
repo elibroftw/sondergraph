@@ -82,6 +82,60 @@ public sealed record PlatformAccount(
 }
 
 /// <summary>
+/// <summary>
+/// How directly a person can be reached, for ordering contacts.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Within one relationship tier the useful order is "who can I actually contact". A phone
+/// number is the strongest signal because it works without an app; Signal counts alongside it
+/// since it is keyed on a phone number and is the channel many contacts prefer.
+/// </para>
+/// <para>
+/// Signal is recognised in every way it can appear on a person: as an account, as the
+/// preferred channel, or as a phone number recorded against a Signal account. Checking only
+/// one of them would give a different order depending on how the data arrived.
+/// </para>
+/// </remarks>
+public static class Reachability
+{
+    /// <summary>Lower sorts earlier.</summary>
+    public static int Rank(Person person)
+    {
+        ArgumentNullException.ThrowIfNull(person);
+
+        var hasPhone = person.Phones.Count > 0;
+        var hasSignal = HasSignal(person);
+        var hasEmail = person.Emails.Count > 0;
+
+        return (hasPhone || hasSignal, hasEmail) switch
+        {
+            // Phone or Signal: can be reached directly and personally.
+            (true, _) => 0,
+
+            // Email only: reachable, but slower and less personal than a phone.
+            (false, true) => 1,
+
+            // Has some other account (an Instagram handle, a Discord username) but no direct
+            // route to the person.
+            _ when person.Accounts.Count > 0 => 2,
+
+            // Nothing at all.
+            _ => 3,
+        };
+    }
+
+    /// <summary>Whether the person can be reached on Signal.</summary>
+    public static bool HasSignal(Person person)
+    {
+        ArgumentNullException.ThrowIfNull(person);
+
+        return person.Accounts.Any(a => string.Equals(a.Platform, "signal", StringComparison.OrdinalIgnoreCase))
+            || string.Equals(person.PreferredChannel, "signal", StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+/// <summary>
 /// The order relationships sort in, closest first.
 /// </summary>
 /// <remarks>

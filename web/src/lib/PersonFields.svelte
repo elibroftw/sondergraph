@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api, ApiError, type Channel, type LocationSummary } from './api'
-  import { TIERS } from './format'
+  import { readableName, TIERS } from './format'
 
   let {
     personId,
@@ -258,7 +258,7 @@
   <ul class="friends-list">
     {#each friends as id (id)}
       <li>
-        <span class="friends-name">{friendNames[id] ?? id}</span>
+        <span class="friends-name">{readableName(friendNames[id] ?? id)}</span>
         <button disabled={friendBusy} onclick={() => unlinkFriend(id)} aria-label="Unlink {id}">×</button>
       </li>
     {/each}

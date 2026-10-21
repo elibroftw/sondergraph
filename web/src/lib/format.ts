@@ -132,6 +132,34 @@ export function tierLabel(tier: string): string {
 }
 
 /** First letters of a name, for the avatar placeholder. */
+/**
+ * Turns a slug-shaped id into a readable name: "amjad-halis" becomes "Amjad Halis".
+ *
+ * Used where an id is displayed directly - a friend whose record has not loaded yet, or one
+ * that no longer resolves. The distinction matters because an id is a file name, not something
+ * a person should have to read.
+ *
+ * A name that already has spaces is returned unchanged, so this is safe to apply to display
+ * names too: "Abdullah Yildirim" and "McDonald's" are left alone.
+ */
+export function readableName(value: string): string {
+  if (!value || value.includes(' ')) {
+    return value
+  }
+
+  // Only transform things that look like slugs. A handle such as "abdullah_dabbagh_" keeps
+  // its underscores, since those are part of how it was recorded rather than a separator.
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/i.test(value)) {
+    return value
+  }
+
+  return value
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
 

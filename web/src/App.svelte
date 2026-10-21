@@ -4,6 +4,7 @@
   import PersonPanel from './lib/PersonPanel.svelte'
   import LinkReview from './lib/LinkReview.svelte'
   import WorkspacePicker from './lib/WorkspacePicker.svelte'
+  import GuestLists from './lib/GuestLists.svelte'
 
   // ---- state -------------------------------------------------------------------------
 
@@ -21,6 +22,7 @@
   let selected = $state<PersonDetail | null>(null)
 
   let showLinks = $state(false)
+  let showGuests = $state(false)
   let loading = $state(true)
   let detailLoading = $state(false)
   let error = $state<string | null>(null)
@@ -255,9 +257,15 @@
         </div>
       </div>
 
-      <button class="link-toggle" onclick={() => (showLinks = !showLinks)}>
-        {showLinks ? 'Hide possible links' : 'Review possible links…'}
-      </button>
+      <div class="toolbar-actions">
+        <button class="link-toggle" onclick={() => (showLinks = !showLinks)}>
+          {showLinks ? 'Hide possible links' : 'Review possible links…'}
+        </button>
+
+        <button class="link-toggle" onclick={() => (showGuests = !showGuests)}>
+          {showGuests ? 'Hide guest lists' : 'Guest lists…'}
+        </button>
+      </div>
 
       {#if activeFilters > 0}
         <div class="query-hints" aria-live="polite">
@@ -273,6 +281,10 @@
 
     {#if showLinks}
       <LinkReview onlinked={refreshAfterEdit} />
+    {/if}
+
+    {#if showGuests}
+      <GuestLists onclose={() => (showGuests = false)} />
     {/if}
 
     <div class="split">

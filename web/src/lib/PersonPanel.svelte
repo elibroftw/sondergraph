@@ -95,6 +95,7 @@
     locations={person.locations}
     preferred={person.preferred}
     howWeMet={person.howWeMet}
+    gender={person.gender}
     onchange={onchanged}
   />
 

@@ -194,6 +194,12 @@ public static class SondergraphEndpoints
         // uses and a derived one cannot.
         api.MapGet("/places", ListPlaces);
 
+        // Guest lists: named sets of people, grouped by recorded gender.
+        api.MapGet("/guest-lists", ListGuestLists);
+        api.MapGet("/guest-lists/{slug}", GetGuestList);
+        api.MapPatch("/guest-lists/{slug}", PatchGuestList);
+        api.MapPatch("/people/{id}/gender", PatchGender);
+
         // Merging. POST /api/merges creates one; DELETE reverses it. Both are explicit
         // verbs on a resource rather than a "merge" flag on a person, so the result has an
         // id that can be undone.
@@ -234,6 +240,149 @@ public static class SondergraphEndpoints
     }
 
     private sealed record WorkspaceRequest(string? Path);
+
+    private sealed record GenderRequest(string? Gender);
+
+    private sealed record GuestListRequest(string? Name, string? Notes, List<string>? Members);
+
+    private static IResult PatchGender(WorkspaceProvider provider, string id, GenderRequest request)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var changed = new PersonEditor(store.ValueOrThrow()).SetGender(id, request.Gender);
+
+        return changed.IsOk
+            ? Results.Ok(new { personId = id, gender = request.Gender?.Trim() is { Length: > 0 } g ? g : null })
+            : Problem(changed.Code, changed.Message, changed.Hint);
+    }
+
+    private static IResult ListGuestLists(WorkspaceProvider provider)
+    {
+        var workspace = provider.Resolve();
+
+        if (!workspace.IsOk)
+        {
+            return Problem(workspace.Code, workspace.Message, workspace.Hint);
+        }
+
+        var lists = new GuestListStore(workspace.ValueOrThrow()).ListAll();
+
+        if (!lists.IsOk)
+        {
+            return Problem(lists.Code, lists.Message, lists.Hint);
+        }
+
+        var people = provider.Store();
+
+        if (!people.IsOk)
+        {
+            return Problem(people.Code, people.Message, people.Hint);
+        }
+
+        var all = people.ValueOrThrow().ListAll(out _);
+        var byId = all.IsOk
+            ? all.ValueOrThrow().ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase)
+            : [];
+
+        return Results.Ok(new
+        {
+            total = lists.ValueOrThrow().Count,
+            lists = lists.ValueOrThrow().Select(l => new
+            {
+                slug = l.Slug,
+                name = l.Name,
+                count = l.Count,
+                // Unresolved ids are reported, not hidden: a list that silently shrinks is
+                // worse than one that says which entries it cannot account for.
+                missing = l.Members.Count(id => !byId.ContainsKey(id)),
+            }),
+        });
+    }
+
+    private static IResult GetGuestList(WorkspaceProvider provider, string slug)
+    {
+        var workspace = provider.Resolve();
+
+        if (!workspace.IsOk)
+        {
+            return Problem(workspace.Code, workspace.Message, workspace.Hint);
+        }
+
+        var loaded = new GuestListStore(workspace.ValueOrThrow()).Load(slug);
+
+        if (!loaded.IsOk)
+        {
+            return Problem(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var people = provider.Store();
+
+        if (!people.IsOk)
+        {
+            return Problem(people.Code, people.Message, people.Hint);
+        }
+
+        var all = people.ValueOrThrow().ListAll(out _);
+
+        if (!all.IsOk)
+        {
+            return Problem(all.Code, all.Message, all.Hint);
+        }
+
+        var byId = all.ValueOrThrow().ToDictionary(p => p.Id, StringComparer.OrdinalIgnoreCase);
+        var list = loaded.ValueOrThrow();
+
+        var guests = list.Members.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+        var missing = list.Members.Where(id => !byId.ContainsKey(id)).ToList();
+        var resolved = new ResolvedGuestList(list, guests, missing);
+
+        return Results.Ok(new
+        {
+            slug = list.Slug,
+            name = list.Name,
+            notes = list.Notes,
+            count = resolved.Count,
+            missing,
+            groups = resolved.Groups.Select(g => new
+            {
+                label = g.Label,
+                unrecorded = g.Unrecorded,
+                count = g.Count,
+                people = g.People.Select(p => new { id = p.Id, name = p.Name }),
+            }),
+        });
+    }
+
+    /// <summary>Creates a list, or replaces its name, notes and membership.</summary>
+    private static IResult PatchGuestList(WorkspaceProvider provider, string slug, GuestListRequest request)
+    {
+        var workspace = provider.Resolve();
+
+        if (!workspace.IsOk)
+        {
+            return Problem(workspace.Code, workspace.Message, workspace.Hint);
+        }
+
+        var store = new GuestListStore(workspace.ValueOrThrow());
+        var name = string.IsNullOrWhiteSpace(request.Name) ? slug : request.Name.Trim();
+
+        var list = new GuestList(
+            GuestList.SlugFor(slug),
+            name,
+            (request.Members ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            request.Notes?.Trim());
+
+        var saved = store.Save(list);
+
+        return saved.IsOk
+            ? Results.Ok(new { slug = list.Slug, name = list.Name, count = list.Count })
+            : Problem(saved.Code, saved.Message, saved.Hint);
+    }
 
     private static IResult SwitchWorkspace(WorkspaceProvider provider, WorkspaceRequest request)
     {
@@ -1289,6 +1438,7 @@ public static class SondergraphEndpoints
         preferredLabel = PreferredChannels.Display(person.PreferredChannel),
         howWeMet = person.HowWeMet,
         howWeMetLabel = ConnectionKinds.Display(person.HowWeMet),
+        gender = person.Gender,
         phones = person.Phones,
         emails = person.Emails,
         locations = person.Locations.Select(l => new
@@ -1321,6 +1471,7 @@ public static class SondergraphEndpoints
         preferredLabel = PreferredChannels.Display(person.PreferredChannel),
         howWeMet = person.HowWeMet,
         howWeMetLabel = ConnectionKinds.Display(person.HowWeMet),
+        gender = person.Gender,
         phones = person.Phones,
         emails = person.Emails,
         tags = person.Tags,

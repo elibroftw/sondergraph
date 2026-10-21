@@ -270,6 +270,28 @@ public sealed record Person
     public ContactTier Tier { get; init; } = ContactTier.Unknown;
 
     /// <summary>
+    /// The person's gender, or null when not recorded.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Free-form rather than an enum, and never inferred. A fixed list would have to name
+    /// which genders exist, which is a decision this app is not entitled to make on someone
+    /// else's behalf; and guessing from a name would be both wrong often and an unpleasant
+    /// thing to do with a backup of one's social graph.
+    /// </para>
+    /// <para>
+    /// The reason it is a field at all is practical: guest lists are usually written
+    /// male-and-female, often with a balance in mind. Anything the user types is preserved
+    /// exactly as typed, so a household that writes "f" and one that writes "female" both
+    /// work, and <see cref="GuestLists"/> groups on the stored text.
+    /// </para>
+    /// <para>
+    /// Most contacts will be null. That is the expected state, not an error.
+    /// </para>
+    /// </remarks>
+    public string? Gender { get; init; }
+
+    /// <summary>
     /// How the user knows this person, e.g. <c>work</c>, <c>university</c>, <c>the climbing
     /// gym</c>. Null when unset.
     /// </summary>

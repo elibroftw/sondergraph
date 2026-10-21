@@ -154,6 +154,22 @@ public sealed class PersonEditor
         return Result.Ok();
     }
 
+    /// <summary>Records a person's gender, or clears it.</summary>
+    /// <remarks>
+    /// Trimmed but otherwise preserved exactly: the vocabulary belongs to the user, so "F"
+    /// and "female" both stay as written. Clearing stores null rather than an empty string,
+    /// because "recorded as blank" and "not recorded" should not be different states.
+    /// </remarks>
+    public Result SetGender(string personId, string? gender)
+    {
+        var value = gender?.Trim();
+
+        return Mutate(personId, person => person with
+        {
+            Gender = string.IsNullOrWhiteSpace(value) ? null : value,
+        });
+    }
+
     public Result AddAccount(string personId, string platform, string handle, string? profileUrl = null)
     {
         if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(handle))

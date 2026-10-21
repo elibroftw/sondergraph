@@ -36,6 +36,8 @@ public static class Program
             "preferred" or "channel" => EditCommands.Preferred(args),
             "met" or "via" => EditCommands.Met(args),
             "purge" => EditCommands.Purge(args),
+            "gender" => EditCommands.Gender(args),
+            "guest" => GuestCommands.Run(args),
             "rename" => EditCommands.Rename(args),
             "graft" or "merge" => MergeCommands.Graft(args),
             "ungraft" or "unmerge" => MergeCommands.Ungraft(args),
@@ -119,6 +121,8 @@ public static class Program
         Console.WriteLine("  preferred <person> [ch]  How they prefer to be contacted (--clear to unset).");
         Console.WriteLine("  met <person> <how>     How you know them, e.g. work, university.");
         Console.WriteLine("  purge [--yes]          Remove contacts whose only emails are no-reply.");
+        Console.WriteLine("  gender <person> [g]    Record a person's gender (--clear to unset).");
+        Console.WriteLine("  guest <list|add|show>  Create and inspect guest lists.");
         Console.WriteLine("  rename <person> <name> Rename, keeping the id.");
         Console.WriteLine();
         Console.WriteLine("Merging:");

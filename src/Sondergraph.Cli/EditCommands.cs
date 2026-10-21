@@ -149,6 +149,83 @@ internal static class EditCommands
         return ExitCode.Success;
     }
 
+    internal static int Gender(string[] args)
+    {
+        // sg gender <person> [<gender>] [--clear]
+        var clear = args.Contains("--clear", StringComparer.Ordinal);
+        var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
+        var positional = new List<string>();
+
+        for (var i = 1; i < args.Length; i++)
+        {
+            if (args[i] is "--workspace" or "-w")
+            {
+                i++;
+                continue;
+            }
+
+            if (!args[i].StartsWith('-'))
+            {
+                positional.Add(args[i]);
+            }
+        }
+
+        var personArg = positional.FirstOrDefault();
+        var gender = positional.Count > 1 ? string.Join(' ', positional.Skip(1)) : null;
+
+        if (personArg is null)
+        {
+            Console.Error.WriteLine("sg: usage: sg gender <person|id> [<gender>] [--clear]");
+            return ExitCode.Usage;
+        }
+
+        var located = Workspace.Locate(workspaceArg);
+
+        if (!located.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(located);
+            return ExitCode.MapExitCode(located.Code);
+        }
+
+        var store = new PersonStore(located.ValueOrThrow());
+
+        if (gender is null && !clear)
+        {
+            var found = PersonCommands.FindPerson(store, personArg);
+
+            if (!found.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(found);
+                return ExitCode.MapExitCode(found.Code);
+            }
+
+            var person = found.ValueOrThrow();
+
+            Console.WriteLine(person.Gender is null
+                ? $"{person.Name}: no gender recorded."
+                : $"{person.Name}: {person.Gender}");
+
+            return ExitCode.Success;
+        }
+
+        return WithPerson(workspaceArg, personArg, "sg gender", (editor, edStore, person) =>
+        {
+            var result = editor.SetGender(person.Id, clear ? null : gender);
+
+            if (!result.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(result);
+                return ExitCode.MapExitCode(result.Code);
+            }
+
+            Console.WriteLine(clear
+                ? $"Cleared the gender for {person.Name}."
+                : $"{person.Name}: {gender}");
+
+            return ExitCode.Success;
+        });
+    }
+
     internal static int Met(string[] args)
     {
         // sg met <person> [<how>] [--clear]

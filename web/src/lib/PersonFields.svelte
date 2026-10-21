@@ -9,6 +9,7 @@
     locations,
     preferred,
     howWeMet,
+    gender,
     onchange,
   }: {
     personId: string
@@ -17,6 +18,7 @@
     locations: LocationSummary[]
     preferred: string | null
     howWeMet: string | null
+    gender: string | null
     onchange: () => void
   } = $props()
 
@@ -47,6 +49,7 @@
   // Draft mirrors the saved value; blur and Enter commit it. Unchanged text is not
   // written, so clicking through contacts does not churn the files.
   let metDraft = $state('')
+  let genderDraft = $state('')
 
   let lastPerson = $state<string | null>(null)
   $effect(() => {
@@ -56,7 +59,19 @@
 
     lastPerson = personId
     metDraft = howWeMet ?? ''
+    genderDraft = gender ?? ''
   })
+
+  const saveGender = () =>
+    run(async () => {
+      const value = genderDraft.trim()
+
+      if (value === (gender ?? '')) {
+        return
+      }
+
+      await api.setGender(personId, value || null)
+    })
 
   const saveMet = () =>
     run(async () => {
@@ -149,6 +164,23 @@
       }
     }}
   ></textarea>
+</section>
+
+<section>
+  <h3>Gender</h3>
+
+  <!-- Free text, not a fixed list: this app is not entitled to decide which genders
+       exist, and the value is preserved exactly as typed. Most contacts leave it blank,
+       which is the expected state rather than an error. -->
+  <input
+    class="gender-input"
+    bind:value={genderDraft}
+    placeholder="Not recorded"
+    aria-label="Gender"
+    disabled={busy}
+    onblur={saveGender}
+    onkeydown={(e) => { if (e.key === 'Enter') saveGender() }}
+  />
 </section>
 
 <section>

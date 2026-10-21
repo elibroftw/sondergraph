@@ -58,6 +58,12 @@ public static class PersonDocument
             output.Append("met: ").Append(Yaml.Scalar(person.HowWeMet)).Append('\n');
         }
 
+        // Omitted when unset, since most contacts will never have one recorded.
+        if (!string.IsNullOrWhiteSpace(person.Gender))
+        {
+            output.Append("gender: ").Append(Yaml.Scalar(person.Gender)).Append('\n');
+        }
+
         if (person.Locations.Count == 0)
         {
             output.Append("locations: []\n");
@@ -173,6 +179,11 @@ public static class PersonDocument
                 : null,
             HowWeMet = ConnectionKinds.Normalise(scalars.GetValueOrDefault("met")) is { Length: > 0 } met
                 ? met
+                : null,
+            // Preserved exactly as typed: the user decides the vocabulary.
+            Gender = scalars.GetValueOrDefault("gender") is { Length: > 0 } rawGender
+                && Yaml.Unquote(rawGender) is { Length: > 0 } gender
+                ? gender
                 : null,
             CreatedAt = Yaml.ParseDate(scalars.GetValueOrDefault("createdAt")),
             UpdatedAt = Yaml.ParseDate(scalars.GetValueOrDefault("updatedAt")),

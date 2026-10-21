@@ -26,6 +26,7 @@ export interface PersonSummary {
   preferredLabel: string
   howWeMet: string | null
   howWeMetLabel: string
+  gender: string | null
   phones: string[]
   emails: string[]
   locations: LocationSummary[]
@@ -376,6 +377,48 @@ export const api = {
       isWorkspace: boolean
       directories: { name: string; path: string; isWorkspace: boolean }[]
     }>(`/api/workspace/browse${path ? `?path=${encodeURIComponent(path)}` : ''}`, signal),
+
+  /** Records a person's gender, preserved exactly as typed. */
+  setGender: async (id: string, gender: string | null): Promise<void> => {
+    await patch(`/api/people/${encodeURIComponent(id)}/gender`, { gender })
+  },
+
+  /** Guest lists: named sets of people, with counts. */
+  guestLists: (signal?: AbortSignal) =>
+    request<{
+      total: number
+      lists: { slug: string; name: string; count: number; missing: number }[]
+    }>('/api/guest-lists', signal),
+
+  /** One guest list, grouped by recorded gender. */
+  guestList: (slug: string, signal?: AbortSignal) =>
+    request<{
+      slug: string
+      name: string
+      notes: string | null
+      count: number
+      missing: string[]
+      groups: {
+        label: string
+        unrecorded: boolean
+        count: number
+        people: { id: string; name: string }[]
+      }[]
+    }>(`/api/guest-lists/${encodeURIComponent(slug)}`, signal),
+
+  /** Creates or replaces a guest list. */
+  saveGuestList: async (payload: {
+    slug: string
+    name: string
+    notes?: string
+    members: string[]
+  }): Promise<void> => {
+    await patch(`/api/guest-lists/${encodeURIComponent(payload.slug)}`, {
+      name: payload.name,
+      notes: payload.notes,
+      members: payload.members,
+    })
+  },
 
   /** Places recorded on any person, most-used first. Derived, never stored. */
   places: (signal?: AbortSignal) =>

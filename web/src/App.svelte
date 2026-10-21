@@ -4,7 +4,7 @@
   import PersonPanel from './lib/PersonPanel.svelte'
   import LinkReview from './lib/LinkReview.svelte'
   import WorkspacePicker from './lib/WorkspacePicker.svelte'
-  import GuestLists from './lib/GuestLists.svelte'
+  import PartyView from './lib/PartyView.svelte'
 
   // ---- state -------------------------------------------------------------------------
 
@@ -175,6 +175,9 @@
   })
 </script>
 
+{#if showGuests}
+  <PartyView onclose={() => (showGuests = false)} />
+{:else}
 <div class="app">
   <header>
     <div class="brand">
@@ -262,9 +265,7 @@
           {showLinks ? 'Hide possible links' : 'Review possible links…'}
         </button>
 
-        <button class="link-toggle" onclick={() => (showGuests = !showGuests)}>
-          {showGuests ? 'Hide guest lists' : 'Guest lists…'}
-        </button>
+        <button class="link-toggle" onclick={() => (showGuests = true)}>Parties…</button>
       </div>
 
       {#if activeFilters > 0}
@@ -283,9 +284,7 @@
       <LinkReview onlinked={refreshAfterEdit} />
     {/if}
 
-    {#if showGuests}
-      <GuestLists onclose={() => (showGuests = false)} />
-    {/if}
+
 
     <div class="split">
       <section class="list" aria-label="Contacts">
@@ -358,3 +357,4 @@
     </div>
   {/if}
 </div>
+{/if}

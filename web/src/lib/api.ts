@@ -397,6 +397,8 @@ export const api = {
       slug: string
       name: string
       notes: string | null
+      date: string | null
+      venue: string | null
       count: number
       missing: string[]
       groups: {
@@ -407,19 +409,45 @@ export const api = {
       }[]
     }>(`/api/guest-lists/${encodeURIComponent(slug)}`, signal),
 
-  /** Creates or replaces a guest list. */
+  /** Creates or replaces a party: name, date, venue and the guest list. */
   saveGuestList: async (payload: {
     slug: string
     name: string
     notes?: string
+    date?: string | null
+    venue?: string | null
     members: string[]
   }): Promise<void> => {
     await patch(`/api/guest-lists/${encodeURIComponent(payload.slug)}`, {
       name: payload.name,
       notes: payload.notes,
+      date: payload.date,
+      venue: payload.venue,
       members: payload.members,
     })
   },
+
+  /** Ranked suggestions for a party, excluding whoever is already invited. */
+  partySuggestions: (slug: string, capacity?: number, signal?: AbortSignal) =>
+    request<{
+      slug: string
+      count: number
+      target: number
+      notes: string[]
+      suggestions: {
+        id: string
+        name: string
+        tier: string
+        tierLabel: string
+        gender: string | null
+        distanceKm: number | null
+        weight: number
+        sources: string[]
+      }[]
+    }>(
+      `/api/guest-lists/${encodeURIComponent(slug)}/suggestions${capacity ? `?capacity=${capacity}` : ''}`,
+      signal,
+    ),
 
   /** Places recorded on any person, most-used first. Derived, never stored. */
   places: (signal?: AbortSignal) =>

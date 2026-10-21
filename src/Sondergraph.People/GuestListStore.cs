@@ -114,6 +114,16 @@ public sealed class GuestListStore
         builder.Append("---\n");
         builder.Append("name: ").Append(Yaml.Scalar(list.Name)).Append('\n');
 
+        if (list.Date is { } date)
+        {
+            builder.Append("date: ").Append(date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
+        }
+
+        if (!string.IsNullOrWhiteSpace(list.Venue))
+        {
+            builder.Append("venue: ").Append(Yaml.Scalar(list.Venue)).Append('\n');
+        }
+
         if (!string.IsNullOrWhiteSpace(list.Notes))
         {
             builder.Append("notes: ").Append(Yaml.Scalar(list.Notes)).Append('\n');
@@ -183,6 +193,8 @@ public sealed class GuestListStore
         var header = text[3..end];
         string? name = null;
         string? notes = null;
+        DateOnly? date = null;
+        string? venue = null;
         var members = new List<string>();
         var inMembers = false;
 
@@ -232,6 +244,20 @@ public sealed class GuestListStore
                     inMembers = false;
                     break;
 
+                case "date":
+                    if (DateOnly.TryParse(Unscalar(value), System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                    {
+                        date = parsed;
+                    }
+
+                    inMembers = false;
+                    break;
+
+                case "venue":
+                    venue = Unscalar(value);
+                    inMembers = false;
+                    break;
+
                 case "members":
                     inMembers = true;
                     break;
@@ -248,7 +274,9 @@ public sealed class GuestListStore
             slug,
             string.IsNullOrWhiteSpace(name) ? slug : name,
             members,
-            string.IsNullOrWhiteSpace(notes) ? null : notes));
+            string.IsNullOrWhiteSpace(notes) ? null : notes,
+            date,
+            string.IsNullOrWhiteSpace(venue) ? null : venue));
     }
 
     private static string Unscalar(string value)

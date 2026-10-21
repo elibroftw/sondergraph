@@ -197,6 +197,10 @@ public static class SondergraphEndpoints
         // Guest lists: named sets of people, grouped by recorded gender.
         api.MapGet("/guest-lists", ListGuestLists);
         api.MapGet("/guest-lists/{slug}", GetGuestList);
+
+        // Suggestions for a party: ranked by tier, distance and the gender target. Separate
+        // from the guest list itself so accepting a suggestion stays an explicit act.
+        api.MapGet("/guest-lists/{slug}/suggestions", GetSuggestions);
         api.MapPatch("/guest-lists/{slug}", PatchGuestList);
         api.MapPatch("/people/{id}/gender", PatchGender);
 
@@ -243,7 +247,7 @@ public static class SondergraphEndpoints
 
     private sealed record GenderRequest(string? Gender);
 
-    private sealed record GuestListRequest(string? Name, string? Notes, List<string>? Members);
+    private sealed record GuestListRequest(string? Name, string? Notes, List<string>? Members, string? Date, string? Venue);
 
     private static IResult PatchGender(WorkspaceProvider provider, string id, GenderRequest request)
     {
@@ -346,6 +350,8 @@ public static class SondergraphEndpoints
             slug = list.Slug,
             name = list.Name,
             notes = list.Notes,
+            date = list.Date?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            venue = list.Venue,
             count = resolved.Count,
             missing,
             groups = resolved.Groups.Select(g => new
@@ -355,6 +361,89 @@ public static class SondergraphEndpoints
                 count = g.Count,
                 people = g.People.Select(p => new { id = p.Id, name = p.Name }),
             }),
+        });
+    }
+
+    /// <summary>
+    /// Suggests people to invite who are not already on the list.
+    /// </summary>
+    /// <param name="capacity">How many to suggest. Defaults to filling to 20.</param>
+    private static IResult GetSuggestions(WorkspaceProvider provider, string slug, int? capacity)
+    {
+        var workspace = provider.Resolve();
+
+        if (!workspace.IsOk)
+        {
+            return Problem(workspace.Code, workspace.Message, workspace.Hint);
+        }
+
+        var store = new GuestListStore(workspace.ValueOrThrow());
+        var loaded = store.Load(slug);
+
+        if (!loaded.IsOk)
+        {
+            return Problem(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var people = provider.Store();
+
+        if (!people.IsOk)
+        {
+            return Problem(people.Code, people.Message, people.Hint);
+        }
+
+        var all = people.ValueOrThrow().ListAll(out _);
+
+        if (!all.IsOk)
+        {
+            return Problem(all.Code, all.Message, all.Hint);
+        }
+
+        var list = loaded.ValueOrThrow();
+        var everyone = all.ValueOrThrow();
+        var onList = list.Members.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var gazetteer = new GazetteerStore(workspace.ValueOrThrow()).Load();
+        var places = gazetteer.IsOk ? gazetteer.ValueOrThrow() : Gazetteer.Empty;
+
+        var options = new PartyPlanOptions(
+            CohortScope.Everyone,
+            [],
+            Capacity: capacity ?? 20,
+            Waves: 1,
+            Venue: places.Find(list.Venue),
+            Gazetteer: places);
+
+        // Exclude whoever is already invited, so the suggestions are genuinely additive.
+        var pool = everyone.Where(p => !onList.Contains(p.Id)).ToList();
+        var plan = InvitePlanner.Plan(pool, options);
+
+        return Results.Ok(new
+        {
+            slug = list.Slug,
+            name = list.Name,
+            count = list.Members.Count,
+            target = list.Members.Count == 0 ? 20 : list.Members.Count,
+            // Ordered by weight rather than by wave-and-gender. The planner fills waves by
+            // drawing women then men, which is right for building a balanced list but reads
+            // badly as a suggestion column: every woman appears above every man, so the
+            // reader scrolls past a block of one gender before seeing any of the other. For
+            // suggestions, the useful question is "who is the best next pick".
+            suggestions = plan.Suggestions
+                .OrderByDescending(s => s.Weight)
+                .ThenBy(s => s.Person.Name, StringComparer.CurrentCultureIgnoreCase)
+                .Select(s => new
+            {
+                id = s.Person.Id,
+                name = s.Person.Name,
+                tier = PersonDocument.TierToWire(s.Person.Tier),
+                tierLabel = PersonDocument.DescribeTier(s.Person.Tier),
+                gender = s.Person.Gender,
+                distanceKm = s.DistanceKm is { } km ? Math.Round(km) : (double?)null,
+                weight = Math.Round(s.Weight, 3),
+                sources = s.Person.Sources,
+            }),
+            notes = plan.Notes,
         });
     }
 
@@ -375,7 +464,9 @@ public static class SondergraphEndpoints
             GuestList.SlugFor(slug),
             name,
             (request.Members ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-            request.Notes?.Trim());
+            request.Notes?.Trim(),
+            DateOnly.TryParse(request.Date, System.Globalization.CultureInfo.InvariantCulture, out var date) ? date : null,
+            string.IsNullOrWhiteSpace(request.Venue) ? null : request.Venue.Trim());
 
         var saved = store.Save(list);
 

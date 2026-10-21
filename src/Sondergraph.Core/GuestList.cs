@@ -7,6 +7,8 @@ namespace Sondergraph.Core;
 /// <param name="Name">Display name, as the user wrote it.</param>
 /// <param name="Members">Person ids on the list, in the order they were added.</param>
 /// <param name="Notes">Optional free text about the event.</param>
+/// <param name="Date">When the party is, if known.</param>
+/// <param name="Venue">Where it is, used to rank suggestions by distance.</param>
 /// <remarks>
 /// <para>
 /// Members are person ids rather than embedded copies, so a guest list follows a person when
@@ -23,8 +25,17 @@ public sealed record GuestList(
     string Slug,
     string Name,
     IReadOnlyList<string> Members,
-    string? Notes = null)
+    string? Notes = null,
+    DateOnly? Date = null,
+    string? Venue = null)
 {
+    /// <summary>Whether the party has already happened, relative to today.</summary>
+    /// <remarks>
+    /// Used only for ordering the list of parties, never to hide anything: a past party is
+    /// still the record of who came.
+    /// </remarks>
+    public bool IsPast => Date is { } date && date < DateOnly.FromDateTime(DateTime.UtcNow);
+
     /// <summary>How many people are on the list.</summary>
     public int Count => Members.Count;
 

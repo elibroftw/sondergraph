@@ -1835,3 +1835,259 @@ ul.plain a,
   flex: 1;
   min-width: 0;
 }
+
+/* ── Party view ───────────────────────────────────────────────────────────────────
+   A full-screen route rather than a panel above the contact list. Organising a party is
+   a different task from browsing contacts and deserves the whole window. */
+
+.party-view {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.party-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.party-head h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  color: var(--accent);
+}
+
+.party-head-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.party-head button,
+.party-actions button {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.party-head button:hover,
+.party-actions button:hover:not(:disabled) {
+  background: var(--hover);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.party-actions button.primary {
+  background: linear-gradient(135deg, var(--accent), var(--violet));
+  border-color: transparent;
+  color: var(--accent-contrast);
+  font-weight: 700;
+}
+
+.party-body {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.party-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.party-list button {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.party-list button:hover {
+  background: var(--hover);
+}
+
+.party-list button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.party-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.party-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.party-card {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-top-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-panel);
+  margin-bottom: 16px;
+}
+
+.party-card h2 {
+  margin: 0 0 10px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.party-fields {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.party-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.party-fields input {
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+}
+
+.party-tally {
+  margin: 0 0 12px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.party-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.party-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.party-guests,
+.party-suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.party-guests li,
+.party-suggestions li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 15px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+}
+
+.party-guest-name {
+  font-weight: 500;
+}
+
+.party-guest-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.party-guests li button,
+.party-suggestions li button {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.party-suggestions li button.accept {
+  margin-left: auto;
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+}
+
+.party-suggestions li button.accept + button {
+  margin-left: 4px;
+}
+
+.party-guests li button:hover,
+.party-suggestions li button:hover {
+  color: var(--danger);
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+}
+
+.party-suggestions li button.accept:hover {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.party-note,
+.party-missing {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .party-body,
+  .party-columns {
+    grid-template-columns: 1fr;
+  }
+}

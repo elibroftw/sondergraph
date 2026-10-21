@@ -46,6 +46,21 @@
     }
   }
 
+  /**
+   * Aliases that say something the Social section does not.
+   *
+   * An alias identical to an account handle or display name is already listed below, so
+   * repeating it under "Also known as" tells the reader nothing. In this workspace 186 of
+   * 195 aliases are exactly that, which is why the section read as noise.
+   */
+  const meaningfulAliases = $derived.by(() => {
+    const shown = new Set(
+      person.accounts.flatMap((a) => [a.handle, a.displayName].filter(Boolean) as string[]),
+    )
+
+    return person.aliases.filter((alias) => !shown.has(alias))
+  })
+
   // `onchanged` lets the parent re-fetch the detail after an edit, so the panel always shows
   // what the server actually stored rather than an optimistic local guess.
   let {
@@ -168,11 +183,11 @@
     </section>
   {/if}
 
-  {#if person.aliases.length > 0}
+  {#if meaningfulAliases.length > 0}
     <section>
       <h3>Also known as</h3>
       <ul class="plain">
-        {#each person.aliases as alias (alias)}
+        {#each meaningfulAliases as alias (alias)}
           <li>{alias}</li>
         {/each}
       </ul>

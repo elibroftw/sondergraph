@@ -91,6 +91,8 @@ public sealed record SearchQuery
         ["vcard"] = "vcard",
         ["google"] = "vcard",
         ["takeout"] = "vcard",
+        ["discord"] = "discord",
+        ["dc"] = "discord",
         ["signal"] = "signal",
         ["bsky"] = "bluesky",
         ["bluesky"] = "bluesky",

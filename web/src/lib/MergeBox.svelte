@@ -81,10 +81,7 @@
   {/if}
 
   {#if !open}
-    <p class="muted">
-      Combine this contact with another record of the same person — for example an Instagram
-      handle and a phone contact.
-    </p>
+    <p class="muted">Combine two records of one person.</p>
     <button onclick={() => (open = true)}>Merge with another contact…</button>
   {:else}
     <p class="muted">

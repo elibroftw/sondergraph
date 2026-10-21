@@ -225,18 +225,18 @@
 {/if}
 
 <section>
-  <h3>How we met</h3>
+  <h3>Notes</h3>
 
-  <!-- Free text, not a dropdown. This is a human description - "Maya's wedding, 2019",
-       "the climbing gym on Bloor" - and a fixed vocabulary forced it into categories it
-       does not fit. Tags already provide the grouping vocabulary for the graph; this field
-       is for the sentence. -->
+  <!-- The free-text note about this person: how you met, where they work, what to remember.
+       It replaced a separate markdown note editor, which duplicated this field with more
+       machinery. Existing note files were migrated into it, since their contents were the
+       same kind of thing - "Met in 2021", "Elementary school". -->
   <textarea
     class="met-input"
     bind:value={metDraft}
     rows="2"
     placeholder="e.g. Met at Maya's wedding in 2019; we worked together at Acme"
-    aria-label="How you met"
+    aria-label="Notes"
     disabled={busy}
     onblur={saveMet}
     onkeydown={(e) => {

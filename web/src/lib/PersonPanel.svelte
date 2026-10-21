@@ -1,7 +1,6 @@
 <script lang="ts">
   import { api, ApiError, type PersonDetail } from './api'
   import { initials, platformHue, platformLabel } from './format'
-  import NoteEditor from './NoteEditor.svelte'
   import PersonFields from './PersonFields.svelte'
   import MergeBox from './MergeBox.svelte'
   import SocialFrame from './SocialFrame.svelte'
@@ -166,8 +165,6 @@
       </ul>
     </section>
   {/if}
-
-  <NoteEditor personId={person.id} personName={person.name} />
 
   <MergeBox
     personId={person.id}

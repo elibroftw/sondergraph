@@ -1645,6 +1645,7 @@ public static class SondergraphEndpoints
         howWeMet = person.HowWeMet,
         howWeMetLabel = ConnectionKinds.Display(person.HowWeMet),
         gender = person.Gender,
+        friendsWith = person.FriendsWith,
         phones = person.Phones,
         emails = person.Emails,
         locations = person.Locations.Select(l => new
@@ -1678,6 +1679,7 @@ public static class SondergraphEndpoints
         howWeMet = person.HowWeMet,
         howWeMetLabel = ConnectionKinds.Display(person.HowWeMet),
         gender = person.Gender,
+        friendsWith = person.FriendsWith,
         phones = person.Phones,
         emails = person.Emails,
         tags = person.Tags,

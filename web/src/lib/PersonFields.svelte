@@ -32,8 +32,12 @@
   let friendBusy = $state(false)
   let friendError = $state<string | null>(null)
 
+  // Defensive against a response that omits the field: a missing array must render as an
+  // empty list, not throw inside the panel and leave it stuck loading.
+  const friends = $derived(friendsWith ?? [])
+
   $effect(() => {
-    if (friendsWith.length === 0) {
+    if (friends.length === 0) {
       friendNames = {}
       return
     }
@@ -62,7 +66,7 @@
       const page = await api.people(q, 'all')
       // Exclude the person themselves and anyone already listed.
       friendMatches = page.people
-        .filter((p) => p.id !== personId && !friendsWith.includes(p.id))
+        .filter((p) => p.id !== personId && !friends.includes(p.id))
         .slice(0, 6)
         .map((p) => ({ id: p.id, name: p.name }))
     } catch {
@@ -252,7 +256,7 @@
   <!-- Friendship is symmetric, so adding here also adds the other person. The list is what
        makes a network view possible: without edges the graph is only you and everyone. -->
   <ul class="friends-list">
-    {#each friendsWith as id (id)}
+    {#each friends as id (id)}
       <li>
         <span class="friends-name">{friendNames[id] ?? id}</span>
         <button disabled={friendBusy} onclick={() => unlinkFriend(id)} aria-label="Unlink {id}">×</button>
@@ -260,7 +264,7 @@
     {/each}
   </ul>
 
-  {#if friendsWith.length === 0}
+  {#if friends.length === 0}
     <p class="muted hint-line">No friends recorded.</p>
   {/if}
 

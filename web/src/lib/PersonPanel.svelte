@@ -96,7 +96,7 @@
     preferred={person.preferred}
     howWeMet={person.howWeMet}
     gender={person.gender}
-    friendsWith={person.friendsWith}
+    friendsWith={person.friendsWith ?? []}
     onchange={onchanged}
   />
 

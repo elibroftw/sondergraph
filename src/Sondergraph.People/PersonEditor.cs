@@ -155,16 +155,23 @@ public sealed class PersonEditor
     }
 
     /// <summary>
-    /// Records that two people are friends, on both records.
+    /// Records that <paramref name="personId"/> lists <paramref name="friendId"/> as a mutual.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Friendship is symmetric, so this writes both sides in a single operation. Recording
-    /// only one side would leave the graph dependent on the direction a traversal walked,
-    /// and the two records could disagree with no way to tell which was right.
+    /// One direction only, and stored on the listing record. The link is a statement about
+    /// what one person says of another: "I know Ada" is yours to assert about Ada, and it is
+    /// not the same claim as Ada asserting it about you. Writing both sides used to make that
+    /// distinction unrepresentable, and forced a guess whenever only one side was known.
     /// </para>
     /// <para>
-    /// Self-links are refused: a person is not their own friend, and allowing it would put a
+    /// The relationship is still read as two-way when both sides list each other - a mutual in
+    /// the ordinary sense - and that is now a fact derived from the data rather than imposed
+    /// on write. Existing records, which were written symmetrically, therefore keep working
+    /// unchanged: they are simply reciprocal.
+    /// </para>
+    /// <para>
+    /// Self-links are refused: a person is not their own mutual, and allowing it would put a
     /// confusing loop in the graph view.
     /// </para>
     /// </remarks>
@@ -195,17 +202,19 @@ public sealed class PersonEditor
         }
 
         // Round-trip through Mutate so the workspace lock and file writes stay in one path.
-        var forward = Mutate(personId, p => p with { FriendsWith = Merge(p.FriendsWith, friendId) });
-
-        if (!forward.IsOk)
-        {
-            return forward;
-        }
-
-        return Mutate(friendId, f => f with { FriendsWith = Merge(f.FriendsWith, personId) });
+        // Only the listing record changes: writing the other side would assert a claim on
+        // that person's behalf.
+        return Mutate(personId, p => p with { FriendsWith = Merge(p.FriendsWith, friendId) });
     }
 
-    /// <summary>Removes a friendship from both records.</summary>
+    /// <summary>
+    /// Removes <paramref name="friendId"/> from <paramref name="personId"/>'s mutuals.
+    /// </summary>
+    /// <remarks>
+    /// One direction, mirroring <see cref="AddFriend"/>: unlinking takes back your own claim,
+    /// and leaves whatever the other person still says about you intact. Removing both sides
+    /// would be editing someone else's record on their behalf.
+    /// </remarks>
     public Result RemoveFriend(string personId, string friendId)
     {
         if (string.IsNullOrWhiteSpace(personId) || string.IsNullOrWhiteSpace(friendId))
@@ -218,15 +227,7 @@ public sealed class PersonEditor
             FriendsWith = p.FriendsWith.Where(id => !string.Equals(id, friendId, StringComparison.OrdinalIgnoreCase)).ToList(),
         });
 
-        if (!removed.IsOk)
-        {
-            return removed;
-        }
-
-        return Mutate(friendId, f => f with
-        {
-            FriendsWith = f.FriendsWith.Where(id => !string.Equals(id, personId, StringComparison.OrdinalIgnoreCase)).ToList(),
-        });
+        return removed;
     }
 
     /// <summary>Adds an id to a list, keeping order and refusing duplicates.</summary>
@@ -255,6 +256,95 @@ public sealed class PersonEditor
     public Result SetNotAContact(string personId, bool notAContact)
     {
         return Mutate(personId, person => person with { NotAContact = notAContact });
+    }
+
+    /// <summary>
+    /// Marks a person as the user, or clears the marking.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The graph has one centre, so a workspace has one self. Setting a second record clears
+    /// the first rather than refusing the request: the user pointing at a different record
+    /// means they picked the wrong one before, and making them go and unset the old one first
+    /// is a puzzle rather than a safeguard.
+    /// </para>
+    /// <para>
+    /// Other records are cleared through the same atomic write, so a crash between the two
+    /// cannot leave two selves behind.
+    /// </para>
+    /// </remarks>
+    public Result SetIsMe(string personId, bool isMe)
+    {
+        var target = Mutate(personId, person => person with { IsMe = isMe });
+
+        if (!target.IsOk || !isMe)
+        {
+            return target;
+        }
+
+        // Clear any other record that also claimed to be self.
+        var all = _store.ListAll(out _);
+
+        if (!all.IsOk)
+        {
+            return Result.Fail(all.Code, all.Message, all.Hint);
+        }
+
+        foreach (var person in all.ValueOrThrow())
+        {
+            if (person.IsMe && !string.Equals(person.Id, personId, StringComparison.Ordinal))
+            {
+                var cleared = Mutate(person.Id, p => p with { IsMe = false });
+
+                if (!cleared.IsOk)
+                {
+                    return cleared;
+                }
+            }
+        }
+
+        return target;
+    }
+
+    /// <summary>
+    /// Records who introduced this person, or clears it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Stored on the introduced person, not on the introducer. "I know Ada through Bo" is a
+    /// fact about Ada's record; writing it onto Bo would mean a second person's page knew
+    /// something its own record could not, and the two could disagree.
+    /// </para>
+    /// <para>
+    /// Self-introduction is refused for the same reason a self-mutual is: it would put a loop
+    /// in a diagram and mean nothing.
+    /// </para>
+    /// </remarks>
+    public Result SetKnownThrough(string personId, string? introducerId)
+    {
+        var cleaned = introducerId?.Trim();
+
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            return Mutate(personId, person => person with { KnownThrough = null });
+        }
+
+        if (string.Equals(personId, cleaned, StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Fail(ErrorCode.Unknown, "A person cannot be introduced by themselves.");
+        }
+
+        var introducer = _store.Load(cleaned);
+
+        if (!introducer.IsOk)
+        {
+            return Result.Fail(
+                introducer.Code,
+                $"No person '{cleaned}' to record as the introducer.",
+                introducer.Hint);
+        }
+
+        return Mutate(personId, person => person with { KnownThrough = cleaned });
     }
 
     /// <summary>Records a person's gender, or clears it.</summary>

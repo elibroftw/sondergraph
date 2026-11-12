@@ -261,4 +261,64 @@ public sealed class PersonEditorTests : IDisposable
 
         Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow), Load().UpdatedAt);
     }
+
+    [Fact]
+    public void Marking_a_person_as_self_persists_to_the_document()
+    {
+        var result = _editor.SetIsMe("example-person", true);
+        Assert.True(result.IsOk, result.Message);
+
+        var saved = _store.Load("example-person").ValueOrThrow();
+        Assert.True(saved.IsMe);
+
+        // Round-trips through the file, not just the in-memory record.
+        var reopened = Sondergraph.Workspaces.Workspace.Create(_root);
+        Assert.True(reopened.IsOk, reopened.Message);
+        var reloaded = new PersonStore(reopened.ValueOrThrow())
+            .Load("example-person")
+            .ValueOrThrow();
+        Assert.True(reloaded.IsMe);
+    }
+
+    [Fact]
+    public void Only_one_person_can_be_self()
+    {
+        // Two "You" nodes would put two centres in a graph that has one.
+        _store.Save(new Person
+        {
+            Id = "second-person",
+            Name = "Second Person",
+            CreatedAt = DateOnly.FromDateTime(DateTime.UtcNow),
+        });
+
+        Assert.True(_editor.SetIsMe("example-person", true).IsOk);
+        Assert.True(_editor.SetIsMe("second-person", true).IsOk);
+
+        var people = _store.ListAll(out _).ValueOrThrow();
+
+        Assert.Single(people, p => p.IsMe);
+        Assert.True(people.Single(p => p.Id == "second-person").IsMe);
+        Assert.False(people.Single(p => p.Id == "example-person").IsMe);
+    }
+
+    [Fact]
+    public void Clearing_the_marking_leaves_nobody_as_self()
+    {
+        Assert.True(_editor.SetIsMe("example-person", true).IsOk);
+        Assert.True(_editor.SetIsMe("example-person", false).IsOk);
+
+        Assert.DoesNotContain(_store.ListAll(out _).ValueOrThrow(), p => p.IsMe);
+    }
+
+    [Fact]
+    public void A_person_marked_as_self_is_still_a_normal_contact()
+    {
+        // Self is not a suppression: the record stays in the list like anyone else.
+        Assert.True(_editor.SetIsMe("example-person", true).IsOk);
+
+        var people = _store.ListAll(out _).ValueOrThrow();
+
+        Assert.Contains(people, p => p.Id == "example-person");
+        Assert.Equal(["+1 555 0301"], people.Single(p => p.Id == "example-person").Phones);
+    }
 }

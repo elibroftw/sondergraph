@@ -139,14 +139,48 @@ public sealed class MergeLog
     /// Finds the merge that absorbed <paramref name="personId"/>, if any.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Used during resolution to avoid re-creating a person that was deliberately merged
     /// away. Without this, every ingest run would resurrect absorbed duplicates and the user
     /// would re-merge them forever.
+    /// </para>
+    /// <para>
+    /// Follows the whole chain, not one hop. A person merged into another who is themselves
+    /// later merged forms a redirect chain: A into B, then B into C. Looking up A must land on
+    /// C. Returning B would name a survivor that has itself been absorbed, and the caller
+    /// would then load a tombstone or recreate the record it was told to avoid.
+    /// </para>
+    /// <para>
+    /// Real case: a vCard contact with a phone number was merged into the Instagram record,
+    /// which was merged into a third. Every later ingest that looked up the vCard record
+    /// resolved to the middle of the chain instead of the end, so the number never found its
+    /// way back to the surviving person.
+    /// </para>
     /// </remarks>
-    public MergeRecord? FindAbsorbing(string personId) =>
-        _records.LastOrDefault(r =>
-            string.Equals(r.AbsorbedId, personId, StringComparison.Ordinal)
-            && !_records.Any(u => u.Reason == $"undo:{r.Id}"));
+    public MergeRecord? FindAbsorbing(string personId)
+    {
+        // Bounded by the number of merges: a cycle would otherwise loop forever, and cycles
+        // are only possible through a corrupted log.
+        var current = personId;
+        MergeRecord? last = null;
+
+        for (var step = 0; step < _records.Count + 1; step++)
+        {
+            var next = _records.LastOrDefault(r =>
+                string.Equals(r.AbsorbedId, current, StringComparison.Ordinal)
+                && !_records.Any(u => u.Reason == $"undo:{r.Id}"));
+
+            if (next is null)
+            {
+                return last;
+            }
+
+            last = next;
+            current = next.SurvivorId;
+        }
+
+        return last;
+    }
 
     /// <summary>Finds a merge by its id.</summary>
     public MergeRecord? Find(string mergeId) =>

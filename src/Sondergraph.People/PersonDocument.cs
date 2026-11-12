@@ -58,6 +58,13 @@ public static class PersonDocument
             output.Append("met: ").Append(Yaml.Scalar(person.HowWeMet)).Append('\n');
         }
 
+        // Who introduced them. Written next to the note because the two read together: the
+        // link says who, the note says how.
+        if (!string.IsNullOrWhiteSpace(person.KnownThrough))
+        {
+            output.Append("knownThrough: ").Append(Yaml.Scalar(person.KnownThrough)).Append('\n');
+        }
+
         // Written only when it is not the default, so ordinary records stay clean.
         if (person.Kind != ContactKind.Person)
         {
@@ -68,6 +75,11 @@ public static class PersonDocument
         if (person.NotAContact)
         {
             output.Append("notAContact: true\n");
+        }
+
+        if (person.IsMe)
+        {
+            output.Append("isMe: true\n");
         }
 
         Yaml.WriteList(output, "friendsWith", person.FriendsWith);
@@ -199,11 +211,18 @@ public static class PersonDocument
             HowWeMet = ConnectionKinds.Normalise(scalars.GetValueOrDefault("met")) is { Length: > 0 } met
                 ? met
                 : null,
+            KnownThrough = Yaml.Unquote(scalars.GetValueOrDefault("knownThrough") ?? string.Empty) is { Length: > 0 } introducer
+                ? introducer
+                : null,
             // Preserved exactly as typed: the user decides the vocabulary.
             FriendsWith = lists.GetValueOrDefault("friendsWith", []),
             Kind = ParseKind(scalars.GetValueOrDefault("kind")),
             NotAContact = string.Equals(
                 scalars.GetValueOrDefault("notAContact")?.Trim(),
+                "true",
+                StringComparison.OrdinalIgnoreCase),
+            IsMe = string.Equals(
+                scalars.GetValueOrDefault("isMe")?.Trim(),
                 "true",
                 StringComparison.OrdinalIgnoreCase),
             Gender = scalars.GetValueOrDefault("gender") is { Length: > 0 } rawGender
@@ -476,6 +495,9 @@ public static class PersonDocument
                 return true;
             case "ext" or "extended" or "extended-family" or "extendedfamily" or "extended_family":
                 tier = ContactTier.ExtendedFamily;
+                return true;
+            case "biz" or "business" or "work" or "colleague" or "client" or "professional":
+                tier = ContactTier.Business;
                 return true;
             case "u" or "unknown" or "none":
                 tier = ContactTier.Unknown;

@@ -195,6 +195,101 @@ public sealed class PersonStore
         File.Exists(FileFor(personId));
 
     /// <summary>
+    /// Loads every record, including ones that would normally be filtered out.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately different from <see cref="ListAll"/>: deleting a contact has to clean up
+    /// references held by records that are themselves hidden - a suppressed contact can still
+    /// name the deleted person as a mutual, and leaving that pointer would put a dangling id in
+    /// a file nobody looks at until it matters.
+    ///
+    /// Merged-away tombstones are still skipped: their identifiers were already redirected to
+    /// the surviving record, so there is nothing there to clean.
+    /// </remarks>
+    public Result<IReadOnlyList<Person>> LoadAllIncludingDeleted()
+    {
+        var people = new List<Person>();
+        var warnings = new List<string>();
+
+        if (!Directory.Exists(_workspace.PeopleDirectory))
+        {
+            return Result.Ok<IReadOnlyList<Person>>(people);
+        }
+
+        foreach (var directory in Directory.EnumerateDirectories(_workspace.PeopleDirectory))
+        {
+            var name = Path.GetFileName(directory);
+
+            if (name.StartsWith('.') || name.StartsWith('_'))
+            {
+                continue;
+            }
+
+            if (File.Exists(Path.Combine(directory, MergeService.RedirectFileName)))
+            {
+                continue;
+            }
+
+            var file = Path.Combine(directory, PersonDocument.FileName);
+
+            if (!File.Exists(file))
+            {
+                continue;
+            }
+
+            var read = Read(file);
+
+            if (!read.IsOk)
+            {
+                warnings.Add($"{name}: {read.Message}");
+                continue;
+            }
+
+            people.Add(read.ValueOrThrow());
+        }
+
+        return Result.Ok<IReadOnlyList<Person>>(people);
+    }
+
+    /// <summary>
+    /// Removes a person's directory entirely.
+    /// </summary>
+    /// <remarks>
+    /// The whole directory, not just <c>person.md</c>: notes and media live beside it, and
+    /// leaving those behind would keep the deleted person's data on disk in a form nothing
+    /// reads. The caller is responsible for having recorded the deletion first.
+    /// </remarks>
+    public Result Remove(string personId)
+    {
+        if (string.IsNullOrWhiteSpace(personId))
+        {
+            return Result.Fail(ErrorCode.Unknown, "A person id is required.");
+        }
+
+        var directory = DirectoryFor(personId);
+
+        if (!Directory.Exists(directory))
+        {
+            return Result.Fail(
+                ErrorCode.WorkspaceNotFound,
+                $"No person '{personId}' in this workspace.");
+        }
+
+        try
+        {
+            Directory.Delete(directory, recursive: true);
+            return Result.Ok();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Result.Fail(
+                ErrorCode.WorkspaceInvalid,
+                $"Could not remove '{directory}': {ex.Message}",
+                "Check that no other program is holding a file open in that directory.");
+        }
+    }
+
+    /// <summary>
     /// Allocates a unique id based on <paramref name="name"/>.
     /// </summary>
     /// <remarks>

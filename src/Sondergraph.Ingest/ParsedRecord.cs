@@ -74,6 +74,29 @@ public sealed record ObservedAccount : ParsedRecord
 
     /// <summary>Embedded photo bytes, for formats that inline them (vCard 2.1).</summary>
     public byte[]? PhotoBytes { get; init; }
+
+    /// <summary>
+    /// Whether this record describes a real profile on the platform, as opposed to a name or
+    /// phone number the export happened to list.
+    /// </summary>
+    /// <remarks>
+    /// A Facebook friend list gives <c>{name, timestamp}</c> and nothing else, and Facebook's
+    /// imported-contacts file is a phone book. Both describe people without describing a
+    /// profile. They are still worth ingesting - the name is what lets a friend list enrich a
+    /// contact that arrived from elsewhere - but calling them a profile put a "facebook" badge
+    /// on 74 people who have no Facebook presence recorded.
+    /// </remarks>
+    public bool HasProfile { get; init; } = true;
+
+    /// <summary>
+    /// Whether seeing this record should add its platform to the person's source list.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <see cref="HasProfile"/>: a record that describes no profile must not claim
+    /// the person is on that platform. It can still match and enrich, which is the point of
+    /// ingesting it at all.
+    /// </remarks>
+    public bool AddsSource { get; init; } = true;
 }
 
 /// <summary>What kind of relationship an interaction represents.</summary>

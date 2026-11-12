@@ -61,6 +61,12 @@ public sealed class FacebookParser : IPlatformParser
     /// <summary>The imported-contacts file, matched by name anywhere in the archive.</summary>
     private const string ImportedContactsFile = "your_imported_contacts.json";
 
+    /// <summary>
+    /// The platform name used for records that are phone-book contacts rather than social
+    /// profiles, so they merge with the same person's vCard entry.
+    /// </summary>
+    private const string ContactsPlatform = "vcard";
+
     /// <inheritdoc />
     public bool CanParse(IRawSource source)
     {
@@ -195,6 +201,15 @@ public sealed class FacebookParser : IPlatformParser
                         Handle = name,
                         DisplayName = name,
                         Extra = extra,
+
+                        // A friend list carries a name and a date - no handle, no URL. That is
+                        // a real former relationship, but it is not evidence of a profile we
+                        // can point at: a "Facebook" badge built from a bare name told the
+                        // user they had a profile for someone when all we had was the string
+                        // "Ajay Menezes". Recorded without claiming the platform, so the name
+                        // still enriches an existing contact and still dates the friendship.
+                        HasProfile = false,
+                        AddsSource = false,
                     };
 
                     if (timestamp is not null && FromUnixSeconds(timestamp.Value) is { } occurred)
@@ -327,19 +342,40 @@ public sealed class FacebookParser : IPlatformParser
                     extra["updateTimeRaw"] = updatedAt.Value.ToString(CultureInfo.InvariantCulture);
                 }
 
-                var nativeId = phones.Count > 0
+                // A record with a phone number and no profile is a *contact*, not a social
+                // account. Facebook's imported-contacts file is a phone book - it carries no
+                // profile URL and no handle, only what the user typed in. Emitting it as a
+                // "facebook" account invented a profile that does not exist and stamped the
+                // person's source list with a platform they do not have a presence on, so the
+                // same human showed up as both "Contacts" and "Facebook".
+                //
+                // Reporting it under the contacts platform instead means it merges with the
+                // vCard record by phone on its own merits, and adds nothing to the source list
+                // it is already in. Records with no phone keep the Facebook platform, because
+                // those genuinely describe a Facebook contact.
+                var isContactRecord = phones.Count > 0;
+
+                var nativeId = isContactRecord
                     ? $"tel:{Person.DigitsOnly(phones[0])}"
                     : $"name:{Person.DeriveId(display)}";
 
                 yield return new ObservedAccount
                 {
-                    Platform = Platform,
+                    Platform = isContactRecord ? ContactsPlatform : Platform,
                     NativeId = nativeId,
                     SourcePath = file,
                     Handle = display,
                     DisplayName = display,
                     Phones = phones,
                     Extra = extra,
+
+                    // Every record in this file is a phone-book entry: a name and a contact
+                    // point, never a handle or a URL. None of them is evidence of a Facebook
+                    // profile, so none claims the platform. With a phone it is reported under
+                    // the contacts platform, so it merges with the same person's vCard entry
+                    // on its merits rather than duplicating the number.
+                    HasProfile = false,
+                    AddsSource = false,
                 };
             }
         }

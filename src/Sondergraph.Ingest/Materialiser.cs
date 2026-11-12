@@ -24,6 +24,18 @@ public sealed record MaterialiseReport
     public int RecordsSkipped { get; init; }
 
     /// <summary>
+    /// Records skipped because they described no profile and matched nobody already stored.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="RecordsSkipped"/> so the two are not conflated: a bare name
+    /// from a friend list is not a broken record, it is a record with nothing to attach to.
+    /// </remarks>
+    public int ProfilelessSkipped { get; init; }
+
+    /// <summary>Records skipped because the person they would create was deleted.</summary>
+    public int DeletedSkipped { get; init; }
+
+    /// <summary>
     /// Pairs that look like the same person but were not merged automatically.
     /// </summary>
     /// <remarks>
@@ -65,14 +77,22 @@ public sealed class Materialiser
 {
     private readonly PersonStore _store;
     private readonly MergeLog _mergeLog;
+    private readonly DeletionLog _deletionLog;
 
     /// <summary>Creates a materialiser over a workspace.</summary>
-    public Materialiser(PersonStore store, MergeLog mergeLog)
+    /// <param name="store">The workspace's people.</param>
+    /// <param name="mergeLog">Merge history, used to redirect absorbed identifiers.</param>
+    /// <param name="deletionLog">
+    /// Deleted contacts. Optional so existing callers keep working, and so a workspace with no
+    /// deletions pays nothing; when absent nothing is filtered.
+    /// </param>
+    public Materialiser(PersonStore store, MergeLog mergeLog, DeletionLog? deletionLog = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(mergeLog);
         _store = store;
         _mergeLog = mergeLog;
+        _deletionLog = deletionLog ?? DeletionLog.Empty();
     }
 
     /// <summary>
@@ -110,6 +130,8 @@ public sealed class Materialiser
         var touchedIds = new HashSet<string>(StringComparer.Ordinal);
         var mergedRecords = 0;
         var skipped = 0;
+        var profilelessSkipped = 0;
+        var deletedSkipped = 0;
 
         foreach (var record in list)
         {
@@ -164,10 +186,51 @@ public sealed class Materialiser
                 continue;
             }
 
+            // A record that describes no profile may only enrich someone who is already here.
+            // A Facebook friend list is 353 bare names, none of which carry a handle or a URL;
+            // creating a person from each one gave the workspace 308 records with no source at
+            // all - a directory, a name, and nothing behind it. The names are still useful for
+            // dating a friendship or filling in a contact that arrived from a phone book, so
+            // skip rather than discard outright.
+            if (!account.HasProfile)
+            {
+                profilelessSkipped++;
+                continue;
+            }
+
             var id = _store.AllocateId(account.DisplayName ?? account.Handle);
-            byId[id] = Build(account, record.Platform, id);
-            createdIds.Add(id);
-            touchedIds.Add(id);
+
+            // AllocateId reuses an existing id when the derived slug collides and the names
+            // match, because that is what makes re-ingest idempotent. Here, though, no strong
+            // key matched - so the person already holding this id is NOT this record, it just
+            // shares a name. Writing Build(...) over it replaced the whole document with the
+            // sliver of data one platform supplied, silently deleting phone numbers, emails
+            // and every other account.
+            //
+            // Nine people lost contact data this way when a LinkedIn export arrived carrying a
+            // name-derived handle. Enrich rather than overwrite: the record survives, and the
+            // new platform is unioned in.
+            // A contact the user deleted stays deleted. Every export still contains them, so
+            // without this the next ingest recreates the record and the user deletes the same
+            // person again after every import - which is worse than having no delete at all.
+            if (_deletionLog.Contains(id))
+            {
+                deletedSkipped++;
+                continue;
+            }
+
+            if (byId.TryGetValue(id, out var claimed))
+            {
+                byId[id] = Enrich(claimed, account, record.Platform);
+                touchedIds.Add(id);
+                mergedRecords++;
+            }
+            else
+            {
+                byId[id] = Build(account, record.Platform, id);
+                createdIds.Add(id);
+                touchedIds.Add(id);
+            }
 
             foreach (var key in keys)
             {
@@ -200,6 +263,8 @@ public sealed class Materialiser
             PeopleUpdated = touchedIds.Count - createdIds.Count,
             RecordsMerged = mergedRecords,
             RecordsSkipped = skipped,
+            ProfilelessSkipped = profilelessSkipped,
+            DeletedSkipped = deletedSkipped,
             Candidates = candidates,
         });
     }
@@ -335,7 +400,7 @@ public sealed class Materialiser
                     account.ProfileUrl,
                     today),
             ],
-            Sources = [platform],
+            Sources = account.AddsSource ? [platform] : [],
             CreatedAt = today,
             UpdatedAt = today,
         };
@@ -397,9 +462,14 @@ public sealed class Materialiser
                 DateOnly.FromDateTime(DateTime.UtcNow)));
         }
 
-        var sources = person.Sources.Contains(platform, StringComparer.OrdinalIgnoreCase)
-            ? person.Sources
-            : [.. person.Sources, platform];
+        // A record that describes no profile must not add its platform to the source list:
+        // seeing someone's name in a friend list is not evidence they have an account you
+        // have, and it produced a "Facebook" badge on people whose only Facebook trace was a
+        // name in an export. Such a record still enriches everything else.
+        var sources = !account.AddsSource
+            || person.Sources.Contains(platform, StringComparer.OrdinalIgnoreCase)
+                ? person.Sources
+                : [.. person.Sources, platform];
 
         return person with
         {

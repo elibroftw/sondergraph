@@ -21,10 +21,16 @@
 
   <PropertyGroup>
     <Version>0.0.1</Version>
-    <Authors>sondergraph contributors</Authors>
+    <Authors>Elijah Lopez</Authors>
     <Product>sondergraph</Product>
     <Description>Map the people in your life into a graph you own.</Description>
     <RepositoryType>git</RepositoryType>
+
+    <!-- "or-later" because the LICENSE file's notice says what the FSF recommends: either
+         version 3 of the License, or (at your option) any later version. Stated as the SPDX
+         expression so NuGet and other tooling can read it without parsing prose. -->
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+    <Copyright>Copyright (C) 2026 Elijah Lopez</Copyright>
   </PropertyGroup>
 
 </Project>

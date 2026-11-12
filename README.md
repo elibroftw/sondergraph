@@ -13,6 +13,19 @@ Pre-alpha. Scaffolding and design in progress.
 - [DESIGN.md](./DESIGN.md) — architecture, stack decisions, and open questions
 - [tasks/](./tasks/) — task tracking, as markdown files
 
+## Licence
+
+Sondergraph is free software under the **GNU Affero General Public License v3.0**
+(see [LICENSE](./LICENSE)).
+
+The AGPL is deliberate. This program holds other people's personal data — phone numbers,
+addresses, where they live, who they know — and is meant to be run as a local service. The
+AGPL closes the gap the GPL leaves open: anyone who runs a modified version *as a network
+service* must offer its source to the people using it. For a tool built around personal data,
+users should be able to check what is being done with theirs.
+
+Copyright (C) 2026 Elijah Lopez.
+
 ## Building
 
 ```bash

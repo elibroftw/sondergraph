@@ -8,6 +8,15 @@ node_modules/
 web/dist/
 .vite/
 
+# The built web UI. Vite writes its output straight into the API's wwwroot so the served UI
+# and the API share an origin, but it is generated: the filenames are content hashes that
+# change on every build. Committing it filled the history with churn and made a generated
+# file look like something to hand-edit.
+#
+# A fresh clone has no UI until `npm ci && npm run build` runs in web/. The README says so,
+# and build-sidecar.sh fails loudly rather than shipping a sidecar that 404s.
+src/Sondergraph.Api/wwwroot/
+
 # .NET
 publish/
 *.nupkg

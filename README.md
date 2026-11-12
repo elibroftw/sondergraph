@@ -13,6 +13,15 @@ Pre-alpha. Scaffolding and design in progress.
 - [DESIGN.md](./DESIGN.md) — architecture, stack decisions, and open questions
 - [tasks/](./tasks/) — task tracking, as markdown files
 
+## Building
+
+```bash
+dotnet build Sondergraph.slnx   # all projects
+dotnet test  Sondergraph.slnx   # all tests
+```
+
+Requires the .NET 10 SDK, and Node 20+ for the frontend.
+
 ## Running it
 
 Sondergraph is a CLI plus a local web UI. Both use the same core (ADR 0001).
@@ -33,8 +42,19 @@ sg list  --workspace ~/sondergraph-data
 sg stats --workspace ~/sondergraph-data
 sg show  <id> --workspace ~/sondergraph-data
 
-# 4. Web UI
+# 4. Web UI — build the frontend first
+cd web && npm ci && npm run build && cd ..
 dotnet run --project src/Sondergraph.Api
+```
+
+The API serves the web UI from `src/Sondergraph.Api/wwwroot/`, which is **generated output and
+not committed** (`npm run build` writes it there, making the app a single origin with no CORS).
+A fresh clone therefore has no UI until the frontend is built — step 4 above does that.
+
+For frontend work, run Vite's dev server instead, which proxies `/api` to the backend:
+
+```bash
+cd web && npm run dev     # http://localhost:5173
 ```
 
 ### Supported sources

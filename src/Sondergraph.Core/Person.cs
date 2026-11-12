@@ -34,6 +34,16 @@ public enum ContactTier
     Family = 5,
 
     /// <summary>
+    /// A business connection: a colleague, client or vendor contact.
+    /// </summary>
+    /// <remarks>
+    /// A relationship, not a kind: the person is still a person and can be invited
+    /// somewhere, but you know them through work rather than socially. Distinct from
+    /// ContactKind.Business, which marks the record itself as a company.
+    /// </remarks>
+    Business = 7,
+
+    /// <summary>
     /// Extended family: cousins, aunts, uncles, in-laws.
     /// </summary>
     /// <remarks>
@@ -192,7 +202,9 @@ public static class RelationshipOrder
         ContactTier.Friend => 3,
         ContactTier.ExtendedFamily => 4,
         ContactTier.Acquaintance => 5,
-        _ => 6,
+        // Below acquaintances: a vendor contact is someone you know of, professionally.
+        ContactTier.Business => 6,
+        _ => 7,
     };
 }
 
@@ -210,6 +222,7 @@ public static class ContactTierNames
     public static string ToWire(ContactTier tier) => tier switch
     {
         ContactTier.Acquaintance => "acquaintance",
+        ContactTier.Business => "business",
         ContactTier.Friend => "friend",
         ContactTier.Close => "close",
         ContactTier.Best => "best",
@@ -222,6 +235,7 @@ public static class ContactTierNames
     public static ContactTier Parse(string? value) => value?.Trim().ToLowerInvariant() switch
     {
         "acquaintance" => ContactTier.Acquaintance,
+        "business" or "work" or "colleague" or "professional" => ContactTier.Business,
         "friend" => ContactTier.Friend,
         "close" => ContactTier.Close,
         "best" => ContactTier.Best,
@@ -234,6 +248,7 @@ public static class ContactTierNames
     public static string ToLabel(ContactTier tier) => tier switch
     {
         ContactTier.Acquaintance => "acquaintance",
+        ContactTier.Business => "business",
         ContactTier.Friend => "friend",
         ContactTier.Close => "close friend",
         ContactTier.Best => "best friend",
@@ -342,6 +357,29 @@ public sealed record Person
     public bool NotAContact { get; init; }
 
     /// <summary>
+    /// Whether this record is the user themselves.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The graph drew a synthetic "You" node with a hardcoded id and no data behind it, so the
+    /// centre of the picture was a placeholder: it could not be opened, had no accounts and no
+    /// tier. Marking a real record instead means the person at the centre is an ordinary
+    /// contact who happens to be the user, with their own phone numbers, accounts and location
+    /// available like anyone else's.
+    /// </para>
+    /// <para>
+    /// At most one record may be self. Setting it on a second record clears the first, because
+    /// two "You" nodes would put two centres in a graph that has one.
+    /// </para>
+    /// <para>
+    /// Distinct from <see cref="NotAContact"/>, which hides a record. Self stays visible
+    /// everywhere except the friend list and guest suggestions - you do not invite yourself -
+    /// and is never a merge candidate for anything.
+    /// </para>
+    /// </remarks>
+    public bool IsMe { get; init; }
+
+    /// <summary>
     /// Ids of contacts this person is friends with, independent of how you know them.
     /// </summary>
     /// <remarks>
@@ -437,6 +475,31 @@ public sealed record Person
     /// </para>
     /// </remarks>
     public string? HowWeMet { get; init; }
+
+    /// <summary>
+    /// Id of the person through whom this one is known, or null when nobody introduced them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The counterpart to <see cref="FriendsWith"/>, and a different relationship. "A and B know
+    /// each other" is mutual and symmetric; "I know A through B" is about how A entered your
+    /// life, and it explains why a cluster exists rather than merely connecting two dots.
+    /// Ten notes in the workspace that prompted this already say "Ramona's boyfriend" or
+    /// "Gijsson's friend" - this is that fact with a name attached instead of prose.
+    /// </para>
+    /// <para>
+    /// One introducer, not a list. Someone is normally introduced by a single person, and a set
+    /// would invite the question of what several introducers jointly mean. The reverse - who
+    /// you met through this person - is computed rather than stored, so it cannot disagree with
+    /// what the introduced person records.
+    /// </para>
+    /// <para>
+    /// Deliberately not derived from the notes. Guessing that "Ramona's boyfriend" means Ramona
+    /// would create links nobody asked for, and a wrong introducer is more confusing than no
+    /// introducer.
+    /// </para>
+    /// </remarks>
+    public string? KnownThrough { get; init; }
 
     /// <summary>
     /// How this person prefers to be contacted, or null when unset.

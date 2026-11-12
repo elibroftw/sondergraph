@@ -28,9 +28,19 @@ export interface PersonSummary {
   howWeMetLabel: string
   gender: string | null
   friendsWith: string[]
+  /** People who list this person as a mutual. Used to show which links are returned. */
+  listedBy: string[]
+
+  /** Who introduced this person, by id and display name. */
+  knownThrough: { id: string; name: string } | null
+
+  /** People introduced through this contact. The other half of the same relationship. */
+  metThrough: { id: string; name: string; tier: string }[]
   needsFixing: boolean
   placeholderName: boolean
   notAContact: boolean
+  /** Whether this record is the user. At most one person has this set. */
+  isMe: boolean
   kind: string
   kindLabel: string
   phones: string[]
@@ -395,6 +405,7 @@ export const api = {
     request<{
       contacts: number
       friendships: number
+      oneWay: number
       nodes: {
         id: string
         name: string
@@ -404,8 +415,26 @@ export const api = {
         y: number
         degree: number
       }[]
-      edges: { from: string; to: string; cluster: number }[]
+      edges: { from: string; to: string; cluster: number; reciprocal: boolean }[]
     }>('/api/graph', signal),
+
+  /**
+   * The tag landscape: every meaningful tag with its members, largest first.
+   *
+   * A separate call from `graph` because the two answer different questions - who knows whom,
+   * versus how the contacts are filed - and the tag view needs everyone tagged, including the
+   * people with no recorded friendships.
+   */
+  tagGraph: (signal?: AbortSignal) =>
+    request<{
+      tagCount: number
+      taggedPeople: number
+      groups: {
+        tag: string
+        count: number
+        members: { id: string; name: string; tier: string }[]
+      }[]
+    }>('/api/graph/tags', signal),
 
   /** Records a friendship, on both records. */
   addFriend: async (id: string, friendId: string): Promise<string[]> => {
@@ -438,6 +467,30 @@ export const api = {
    */
   setNotAContact: async (id: string, notAContact: boolean): Promise<void> => {
     await patch(`/api/people/${encodeURIComponent(id)}/not-a-contact`, { notAContact })
+  },
+
+  /**
+   * Deletes a contact for good.
+   *
+   * Cleans up references in other contacts and is remembered, so a re-import will not recreate
+   * the person. Distinct from `setNotAContact`, which keeps and hides the record.
+   */
+  deletePerson: async (id: string): Promise<void> => {
+    await del2(`/api/people/${encodeURIComponent(id)}`)
+  },
+
+  /** Records who introduced a contact, or clears it. */
+  setKnownThrough: async (id: string, personId: string | null): Promise<void> => {
+    await patch(`/api/people/${encodeURIComponent(id)}/known-through`, { personId })
+  },
+
+  /**
+   * Marks a contact as the user, or clears it.
+   *
+   * Setting it on a second record clears the first, so the graph keeps one centre.
+   */
+  setIsMe: async (id: string, isMe: boolean): Promise<void> => {
+    await patch(`/api/people/${encodeURIComponent(id)}/me`, { isMe })
   },
 
   /** Sets what kind of entry a record is: person, business, place, organisation. */
@@ -522,6 +575,22 @@ export const api = {
   /** How-you-know-them values in use, derived from the people who have one. */
   connections: (signal?: AbortSignal) =>
     request<ChannelsResponse>('/api/connections', signal),
+
+  /**
+   * Creates a contact by hand.
+   *
+   * The only way to add somebody with no export behind them. Returns the person so the caller
+   * can open them immediately.
+   */
+  createPerson: async (input: {
+    name: string
+    phones?: string[]
+    emails?: string[]
+    accounts?: { platform: string; handle: string; profileUrl?: string }[]
+  }): Promise<PersonSummary> => {
+    const result = await post<{ person: PersonSummary }>('/api/people', input)
+    return result.person
+  },
 
   /** Adds an account for a platform with no export, e.g. a Signal number. */
   addAccount: async (

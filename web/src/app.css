@@ -326,11 +326,23 @@ header {
   white-space: nowrap;
 }
 
+/* The relationship pill.
+   Was dark text on a flat --border fill, which on the light theme is a pale grey-blue: the
+   lowest-contrast thing in the row and the one fact most worth reading. It now uses the same
+   hue-mix scheme as the platform chips, so it carries colour and contrast like its
+   neighbours, and is bolded since a relationship is an attribute of the person rather than
+   metadata about an account. */
 .tier {
-  padding: 1px 8px;
+  --hue: 210;
+  padding: 2px 9px;
   border-radius: 999px;
-  background: var(--border);
+  color: hsl(var(--hue) var(--chip-saturate) var(--chip-text-mix));
+  background: hsl(var(--hue) var(--chip-saturate) var(--chip-bg-mix));
+  border: 1px solid hsl(var(--hue) var(--chip-saturate) var(--chip-border-mix));
+  font-family: var(--font-display);
   font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .muted {
@@ -636,15 +648,6 @@ ul.plain a:hover {
 }
 
 /* ── Editable person fields (relationship, tags, locations) ─────────────────────── */
-
-.tiers-inline {
-  gap: 4px;
-}
-
-.tiers-inline button {
-  padding: 4px 10px;
-  font-size: 13px;
-}
 
 .tag-list {
   list-style: none;
@@ -1067,9 +1070,16 @@ ul.plain a:hover {
   opacity: 0.65;
 }
 
-.social-note {
-  margin-left: auto;
-  font-size: 13px;
+/* Contact methods are not a diminished form of a social link, so they are not faded the
+   way an unlinked account is. They are their own thing: a phone number to ring. */
+.social-subhead {
+  margin: 14px 0 6px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 
@@ -1203,15 +1213,13 @@ textarea:focus {
 
 /* Pills and chips glow on hover but never on their own. */
 .tiers button:hover,
-.tiers-inline button:hover,
 .query-hints button:hover,
 .link-toggle:hover {
   border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
   box-shadow: var(--glow-soft);
 }
 
-.tiers button.active,
-.tiers-inline button.active {
+.tiers button.active {
   box-shadow: var(--glow);
 }
 
@@ -2190,6 +2198,19 @@ ul.plain a,
   flex: 1;
 }
 
+/* Whether a mutual is returned. The arrow is quiet because most links in an address book are
+   one-way simply because the other side was never typed in - it is information, not a warning. */
+.mutual-mark {
+  color: var(--accent);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.mutual-mark.one-way {
+  color: var(--muted);
+  opacity: 0.6;
+}
+
 .friends-list button {
   border: none;
   background: transparent;
@@ -2276,4 +2297,54 @@ ul.plain a,
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ---- Deleting a contact ------------------------------------------------------ */
+
+/* Visually separated from "Not a contact" above it, because the two do opposite things: one
+   hides a record, the other destroys it. A divider and the danger colour are the whole
+   difference, and the confirmation step carries the rest of the weight. */
+.delete-person {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.delete-warning {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.delete-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.delete-actions button {
+  flex: 1;
+}
+
+.delete-actions .danger {
+  border-color: var(--danger-border);
+  background: var(--danger);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.delete-actions .danger:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.danger-text {
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+.danger-text:hover {
+  background: var(--danger-soft);
 }

@@ -149,6 +149,7 @@ public static class SondergraphEndpoints
         api.MapGet("/workspace/browse", BrowseWorkspaces);
         api.MapGet("/stats", Stats);
         api.MapGet("/people", ListPeople);
+        api.MapPost("/people", CreatePerson);
         api.MapGet("/people/{id}", GetPerson);
         api.MapGet("/duplicates", Duplicates);
 
@@ -207,6 +208,8 @@ public static class SondergraphEndpoints
         // Marks a record as "not a contact". The record is kept: suppression is a judgement
         // about the person, and a re-import would recreate anything actually deleted.
         api.MapPatch("/people/{id}/not-a-contact", PatchNotAContact);
+        api.MapPatch("/people/{id}/me", PatchIsMe);
+        api.MapPatch("/people/{id}/known-through", PatchKnownThrough);
 
         // What kind of entry this is: person, business, place, organisation.
         api.MapPatch("/people/{id}/kind", PatchKind);
@@ -215,7 +218,9 @@ public static class SondergraphEndpoints
         // writing one side writes the other.
         api.MapPost("/people/{id}/friends", AddFriend);
         api.MapDelete("/people/{id}/friends", RemoveFriend);
+        api.MapDelete("/people/{id}", DeletePerson);
         api.MapGet("/graph", GetGraph);
+        api.MapGet("/graph/tags", GetTagGraph);
 
         // Merging. POST /api/merges creates one; DELETE reverses it. Both are explicit
         // verbs on a resource rather than a "merge" flag on a person, so the result has an
@@ -261,6 +266,10 @@ public static class SondergraphEndpoints
     private sealed record GenderRequest(string? Gender);
 
     private sealed record NotAContactRequest(bool NotAContact);
+
+    private sealed record IsMeRequest(bool IsMe);
+
+    private sealed record KnownThroughRequest(string? PersonId);
 
     private sealed record KindRequest(string? Kind);
 
@@ -310,6 +319,94 @@ public static class SondergraphEndpoints
         }
 
         return Results.Ok(new { personId = id, notAContact = request.NotAContact });
+    }
+
+    private static IResult PatchIsMe(WorkspaceProvider provider, string id, IsMeRequest request)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var editor = new PersonEditor(store.ValueOrThrow());
+        var changed = editor.SetIsMe(id, request.IsMe);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        return Results.Ok(new { personId = id, isMe = request.IsMe });
+    }
+
+    private static IResult PatchKnownThrough(
+        WorkspaceProvider provider,
+        string id,
+        KnownThroughRequest request)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var changed = new PersonEditor(store.ValueOrThrow()).SetKnownThrough(id, request.PersonId);
+
+        if (!changed.IsOk)
+        {
+            return Problem(changed.Code, changed.Message, changed.Hint);
+        }
+
+        var reloaded = store.ValueOrThrow().Load(id);
+
+        return reloaded.IsOk
+            ? Results.Ok(new { personId = id, knownThrough = reloaded.ValueOrThrow().KnownThrough })
+            : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
+    }
+
+    /// <summary>Deletes a contact, cleaning up references and remembering the decision.</summary>
+    private static IResult DeletePerson(WorkspaceProvider provider, string id)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var workspace = provider.Resolve();
+
+        if (!workspace.IsOk)
+        {
+            return Problem(workspace.Code, workspace.Message, workspace.Hint);
+        }
+
+        var log = DeletionLog.Load(workspace.ValueOrThrow().Root);
+
+        if (!log.IsOk)
+        {
+            return Problem(log.Code, log.Message, log.Hint);
+        }
+
+        var deleted = new PersonDeleter(store.ValueOrThrow(), log.ValueOrThrow()).Delete(id);
+
+        if (!deleted.IsOk)
+        {
+            return Problem(deleted.Code, deleted.Message, deleted.Hint);
+        }
+
+        var result = deleted.ValueOrThrow();
+
+        return Results.Ok(new
+        {
+            personId = result.Deleted.Id,
+            name = result.Deleted.Name,
+            clearedMutuals = result.ClearedMutuals,
+            clearedIntroducers = result.ClearedIntroducers,
+        });
     }
 
     private sealed record FriendRequest(string? FriendId);
@@ -374,6 +471,38 @@ public static class SondergraphEndpoints
             : Problem(reloaded.Code, reloaded.Message, reloaded.Hint);
     }
 
+    /// <summary>The tag landscape: every meaningful tag, largest first.</summary>
+    private static IResult GetTagGraph(WorkspaceProvider provider)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var loaded = store.ValueOrThrow().ListAll(out _);
+
+        if (!loaded.IsOk)
+        {
+            return Problem(loaded.Code, loaded.Message, loaded.Hint);
+        }
+
+        var network = TagGraph.Build(loaded.ValueOrThrow());
+
+        return Results.Ok(new
+        {
+            tagCount = network.TagCount,
+            taggedPeople = network.TaggedPeople,
+            groups = network.Groups.Select(g => new
+            {
+                tag = g.Tag,
+                count = g.Count,
+                members = g.Members.Select(m => new { id = m.Id, name = m.Name, tier = m.Tier }),
+            }),
+        });
+    }
+
     private static IResult GetGraph(WorkspaceProvider provider)
     {
         var store = provider.Store();
@@ -396,6 +525,7 @@ public static class SondergraphEndpoints
         {
             contacts = network.ContactCount,
             friendships = network.FriendshipCount,
+            oneWay = network.OneWayCount,
             nodes = network.Nodes.Select(n => new
             {
                 id = n.Id,
@@ -406,7 +536,13 @@ public static class SondergraphEndpoints
                 y = n.Y,
                 degree = n.Degree,
             }),
-            edges = network.Edges.Select(e => new { from = e.From, to = e.To, cluster = e.Cluster }),
+            edges = network.Edges.Select(e => new
+            {
+                from = e.From,
+                to = e.To,
+                cluster = e.Cluster,
+                reciprocal = e.Reciprocal,
+            }),
         });
     }
 
@@ -578,8 +714,11 @@ public static class SondergraphEndpoints
             Gazetteer: places);
 
         // Exclude whoever is already invited, so the suggestions are genuinely additive.
-        // Only people are suggested as guests: inviting a gym is a category error.
-        var pool = everyone.Where(p => p.IsPerson && !onList.Contains(p.Id)).ToList();
+        // Only people are suggested as guests: inviting a gym is a category error, and so is
+        // inviting yourself.
+        var pool = everyone
+            .Where(p => p.IsPerson && !p.IsMe && !onList.Contains(p.Id))
+            .ToList();
         var plan = InvitePlanner.Plan(pool, options);
 
         return Results.Ok(new
@@ -952,15 +1091,51 @@ public static class SondergraphEndpoints
 
                 if (matches.Count == 1)
                 {
-                    return Results.Ok(ToDetail(matches[0]));
+                    var everyone = all.ValueOrThrow();
+                    return Results.Ok(ToDetail(matches[0], everyone));
                 }
             }
 
             return Problem(loaded.Code, loaded.Message, loaded.Hint);
         }
 
-        return Results.Ok(ToDetail(loaded.ValueOrThrow()));
+        var person = loaded.ValueOrThrow();
+        var allPeople = personStore.ListAll(out _);
+
+        return Results.Ok(ToDetail(
+            person,
+            allPeople.IsOk ? allPeople.ValueOrThrow() : [person]));
     }
+
+    /// <summary>
+    /// Ids of the people who list <paramref name="person"/> as a mutual.
+    /// </summary>
+    /// <remarks>
+    /// A mutual is one-directional on disk, so the reverse has to be computed. The panel needs
+    /// it to say which listed people return the claim; without it every link looks one-way,
+    /// because only the outgoing side is stored on the record being viewed.
+    /// </remarks>
+    /// <summary>
+    /// People whose introducer is <paramref name="person"/>.
+    /// </summary>
+    /// <remarks>
+    /// The other half of "known through". Stored only on the introduced record, so this
+    /// direction is computed - which is what lets a contact's page show who you met through
+    /// them without those people having to be edited.
+    /// </remarks>
+    private static List<Person> MetThrough(Person person, IReadOnlyList<Person> everyone) =>
+        everyone
+            .Where(other => string.Equals(other.KnownThrough, person.Id, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(other => RelationshipOrder.Rank(other.Tier))
+            .ThenBy(other => other.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+    private static List<string> ListedBy(Person person, IReadOnlyList<Person> everyone) =>
+        everyone
+            .Where(other => other.FriendsWith.Contains(person.Id, StringComparer.OrdinalIgnoreCase))
+            .Select(other => other.Id)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     /// <summary>The request body for writing a note.</summary>
     private sealed record NoteBody(string? Body);
@@ -1036,6 +1211,12 @@ public static class SondergraphEndpoints
     private sealed record MetRequest(string? HowWeMet);
     private sealed record NameRequest(string? Name);
     private sealed record AccountRequest(string? Platform, string? Handle, string? ProfileUrl);
+
+    private sealed record CreatePersonRequest(
+        string? Name,
+        List<string>? Phones,
+        List<string>? Emails,
+        List<AccountRequest>? Accounts);
 
     private sealed record TierRequest(string? Tier);
     private sealed record TagsRequest(List<string>? Add, List<string>? Remove);
@@ -1277,6 +1458,36 @@ public static class SondergraphEndpoints
         }
 
         return Results.Ok(new { personId = id, name = request.Name.Trim() });
+    }
+
+    /// <summary>Creates a contact by hand.</summary>
+    /// <remarks>
+    /// A POST to the collection rather than a form of its own: the client sends a name and any
+    /// details it has, and gets back the person it can then open like any other.
+    /// </remarks>
+    private static IResult CreatePerson(WorkspaceProvider provider, CreatePersonRequest request)
+    {
+        var store = provider.Store();
+
+        if (!store.IsOk)
+        {
+            return Problem(store.Code, store.Message, store.Hint);
+        }
+
+        var accounts = (request.Accounts ?? [])
+            .Where(a => !string.IsNullOrWhiteSpace(a.Platform) && !string.IsNullOrWhiteSpace(a.Handle))
+            .Select(a => PlatformAccount.Create(a.Platform!, a.Handle!, null, a.ProfileUrl))
+            .ToList();
+
+        var created = new PersonCreator(store.ValueOrThrow())
+            .Create(request.Name, request.Phones, request.Emails, accounts);
+
+        if (!created.IsOk)
+        {
+            return Problem(created.Code, created.Message, created.Hint);
+        }
+
+        return Results.Ok(new { person = ToSummary(created.ValueOrThrow()) });
     }
 
     private static IResult AddAccount(WorkspaceProvider provider, string id, AccountRequest request)
@@ -1716,6 +1927,7 @@ public static class SondergraphEndpoints
         friendsWith = person.FriendsWith,
         needsFixing = person.NeedsFixing,
         notAContact = person.NotAContact,
+        isMe = person.IsMe,
         kind = PersonDocument.KindToWire(person.Kind),
         kindLabel = PersonDocument.DescribeKind(person.Kind),
         placeholderName = person.HasPlaceholderName,
@@ -1740,7 +1952,7 @@ public static class SondergraphEndpoints
     };
 
     /// <summary>Projects a person to the detail shape.</summary>
-    private static object ToDetail(Person person) => new
+    private static object ToDetail(Person person, IReadOnlyList<Person> everyone) => new
     {
         id = person.Id,
         name = person.Name,
@@ -1753,8 +1965,23 @@ public static class SondergraphEndpoints
         howWeMetLabel = ConnectionKinds.Display(person.HowWeMet),
         gender = person.Gender,
         friendsWith = person.FriendsWith,
+        listedBy = ListedBy(person, everyone),
+
+        // Both directions of the introducer relationship, resolved to names here so the panel
+        // does not have to fetch every contact to render two lists.
+        knownThrough = person.KnownThrough is { Length: > 0 } introducerId
+            ? everyone.FirstOrDefault(p => string.Equals(p.Id, introducerId, StringComparison.OrdinalIgnoreCase))
+                is { } introducer
+                    ? new { id = introducer.Id, name = introducer.Name }
+                    : new { id = introducerId, name = introducerId }
+            : null,
+        metThrough = MetThrough(person, everyone)
+            .Select(p => new { id = p.Id, name = p.Name, tier = ContactTierNames.ToWire(p.Tier) })
+            .ToList(),
+
         needsFixing = person.NeedsFixing,
         notAContact = person.NotAContact,
+        isMe = person.IsMe,
         kind = PersonDocument.KindToWire(person.Kind),
         kindLabel = PersonDocument.DescribeKind(person.Kind),
         placeholderName = person.HasPlaceholderName,

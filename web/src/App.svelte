@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api, ApiError, type Health, type PersonDetail, type PersonSummary, type Stats } from './lib/api'
-  import { initials, people as peopleLabel, platformHue, platformLabel, resolvePlatform, SOURCES, TIERS } from './lib/format'
+  import { initials, people as peopleLabel, platformHue, platformLabel, resolvePlatform, SOURCES, TIERS, tierHue } from './lib/format'
+  import AddPerson from './lib/AddPerson.svelte'
   import PersonPanel from './lib/PersonPanel.svelte'
   import LinkReview from './lib/LinkReview.svelte'
   import WorkspacePicker from './lib/WorkspacePicker.svelte'
@@ -25,6 +26,7 @@
 
   let showLinks = $state(false)
   let showGuests = $state(false)
+  let showAddPerson = $state(false)
   let showGraph = $state(false)
   let loading = $state(true)
   let detailLoading = $state(false)
@@ -256,10 +258,27 @@
   })
 </script>
 
+{#if showAddPerson}
+  <AddPerson
+    oncreated={(id) => {
+      showAddPerson = false
+      loadContacts()
+      selectPerson(id)
+    }}
+    oncancel={() => (showAddPerson = false)}
+  />
+{/if}
+
 {#if showGuests}
   <PartyView onclose={() => (showGuests = false)} />
 {:else if showGraph}
-  <GraphView onclose={() => (showGraph = false)} />
+  <GraphView
+    onclose={() => (showGraph = false)}
+    onselect={(id) => {
+      showGraph = false
+      selectPerson(id)
+    }}
+  />
 {:else}
 <div class="app">
   <header>
@@ -357,6 +376,8 @@
           Needs fixing
         </button>
 
+        <button class="link-toggle" onclick={() => (showAddPerson = true)}>+ Add contact</button>
+
         <button class="link-toggle" onclick={() => (showGuests = true)}>Party planner</button>
         <button class="link-toggle" onclick={() => (showGraph = true)}>Network</button>
       </div>
@@ -421,7 +442,7 @@
                       {/if}
 
                       {#if person.tierLabel !== '-'}
-                        <span class="tier">{person.tierLabel}</span>
+                        <span class="tier" style="--hue: {tierHue(person.tier)}">{person.tierLabel}</span>
                       {/if}
                     </span>
                   </span>

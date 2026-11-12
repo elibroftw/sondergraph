@@ -54,11 +54,12 @@ public sealed class RelationshipOrderTests
     }
 
     [Fact]
-    public void The_full_order_is_family_best_close_friend_extended_acquaintance_unrated()
+    public void The_full_order_is_family_best_close_friend_extended_acquaintance_business_unrated()
     {
         var ranked = new[]
         {
             ContactTier.Unknown,
+            ContactTier.Business,
             ContactTier.Acquaintance,
             ContactTier.ExtendedFamily,
             ContactTier.Friend,
@@ -77,9 +78,37 @@ public sealed class RelationshipOrderTests
                 ContactTier.Friend,
                 ContactTier.ExtendedFamily,
                 ContactTier.Acquaintance,
+                ContactTier.Business,
                 ContactTier.Unknown,
             ],
             ranked);
+    }
+
+    [Fact]
+    public void Business_sorts_below_acquaintances_and_above_unrated()
+    {
+        // Knowing someone through work is weaker than knowing them socially, but it is still
+        // a relationship and should rank above a record nobody has rated.
+        Assert.True(RelationshipOrder.Rank(ContactTier.Acquaintance) < RelationshipOrder.Rank(ContactTier.Business));
+        Assert.True(RelationshipOrder.Rank(ContactTier.Business) < RelationshipOrder.Rank(ContactTier.Unknown));
+    }
+
+    [Fact]
+    public void Business_tier_is_distinct_from_business_kind()
+    {
+        // The tier is how you know the person; the kind is what the record is. They share a
+        // name, so the values must never be confused for one another.
+        Assert.NotEqual((int)ContactTier.Business, (int)ContactKind.Business);
+    }
+
+    [Fact]
+    public void Business_tier_round_trips_through_its_wire_form()
+    {
+        Assert.Equal("business", ContactTierNames.ToWire(ContactTier.Business));
+        Assert.Equal(ContactTier.Business, ContactTierNames.Parse("business"));
+        Assert.Equal(ContactTier.Business, ContactTierNames.Parse("Business"));
+        Assert.Equal(ContactTier.Business, ContactTierNames.Parse("colleague"));
+        Assert.Equal(ContactTier.Business, ContactTierNames.Parse("work"));
     }
 
     [Fact]

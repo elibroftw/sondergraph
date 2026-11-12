@@ -37,6 +37,9 @@ public static class Program
             "met" or "via" => EditCommands.Met(args),
             "purge" => EditCommands.Purge(args),
             "gender" => EditCommands.Gender(args),
+            "me" or "self" => EditCommands.Me(args),
+            "new" or "create" or "add" => EditCommands.New(args),
+            "delete" or "rm" => EditCommands.Delete(args),
             // "sg party" is the party planner: list/show/add/remove manage parties, and
             // "sg party suggest" produces invite suggestions for one. Previously "party"
             // only suggested and the planner lived under "guest", which made the rename a

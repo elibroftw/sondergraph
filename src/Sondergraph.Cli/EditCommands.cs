@@ -30,6 +30,7 @@ internal static class EditCommands
         ("best", ContactTier.Best, "a best friend"),
         ("family", ContactTier.Family, "immediate family"),
         ("extended-family", ContactTier.ExtendedFamily, "extended family"),
+        ("business", ContactTier.Business, "a colleague or client"),
         ("none", ContactTier.Unknown, "clear the rating"),
     ];
 
@@ -148,6 +149,275 @@ internal static class EditCommands
         }
 
         return ExitCode.Success;
+    }
+
+    /// <summary>
+    /// Deletes a contact for good.
+    /// </summary>
+    /// <remarks>
+    /// Removes the record and every reference to it in other contacts. The deletion is
+    /// remembered, so a re-import will not recreate the person. Distinct from
+    /// "not a contact", which keeps the record and hides it; this is for records that should
+    /// never have existed.
+    /// </remarks>
+    internal static int Delete(string[] args)
+    {
+        var personArg = args.Skip(1).FirstOrDefault(a => !a.StartsWith('-'));
+        var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
+        var confirmed = args.Contains("--yes", StringComparer.Ordinal);
+
+        if (personArg is null)
+        {
+            Console.Error.WriteLine("sg: usage: sg delete <person|id> [--yes]");
+            return ExitCode.Usage;
+        }
+
+        var located = Workspace.Locate(workspaceArg);
+
+        if (!located.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(located);
+            return ExitCode.MapExitCode(located.Code);
+        }
+
+        var workspace = located.ValueOrThrow();
+        var store = new PersonStore(workspace);
+
+        var found = PersonCommands.FindPerson(store, personArg);
+
+        if (!found.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(found);
+            return ExitCode.MapExitCode(found.Code);
+        }
+
+        var person = found.ValueOrThrow();
+
+        // Naming the person in the prompt matters: the argument may have been a display name
+        // that resolved to somebody else, and this is the last chance to notice.
+        if (!confirmed)
+        {
+            Console.Error.WriteLine(
+                $"sg: delete {person.Name} ({person.Id})? This removes the record and cannot be undone from here.");
+            Console.Error.WriteLine("sg: re-run with --yes to confirm.");
+            return ExitCode.Usage;
+        }
+
+        var log = DeletionLog.Load(workspace.Root);
+
+        if (!log.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(log);
+            return ExitCode.MapExitCode(log.Code);
+        }
+
+        var deleted = new PersonDeleter(store, log.ValueOrThrow()).Delete(person.Id);
+
+        if (!deleted.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(deleted);
+            return ExitCode.MapExitCode(deleted.Code);
+        }
+
+        var result = deleted.ValueOrThrow();
+
+        Console.WriteLine($"Deleted {result.Deleted.Name} ({result.Deleted.Id}).");
+
+        if (result.ClearedMutuals > 0)
+        {
+            Console.WriteLine($"  removed from {result.ClearedMutuals} mutual list(s).");
+        }
+
+        if (result.ClearedIntroducers > 0)
+        {
+            Console.WriteLine($"  cleared as introducer for {result.ClearedIntroducers} contact(s).");
+        }
+
+        return ExitCode.Success;
+    }
+
+    /// <summary>
+    /// Creates a contact by hand.
+    /// </summary>
+    /// <remarks>
+    /// The only way to add somebody without an export. Flags rather than a form because a CLI
+    /// user is scripting this, and because the same fields are optional here as they are in the
+    /// UI:
+    /// <code>
+    /// sg new "Ada Lovelace" --phone +1555010099 --email ada@example.invalid --ig ada
+    /// </code>
+    /// </remarks>
+    internal static int New(string[] args)
+    {
+        var positional = new List<string>();
+        var phones = new List<string>();
+        var emails = new List<string>();
+        var accounts = new List<PlatformAccount>();
+        string? workspaceArg = null;
+
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--workspace" or "-w":
+                    workspaceArg = i + 1 < args.Length ? args[++i] : null;
+                    break;
+
+                case "--phone" or "-p":
+                    if (i + 1 < args.Length) phones.Add(args[++i]);
+                    break;
+
+                case "--email" or "-e":
+                    if (i + 1 < args.Length) emails.Add(args[++i]);
+                    break;
+
+                // One flag per platform so the common case is short. "--account platform:handle"
+                // covers anything without a flag of its own.
+                case "--instagram" or "--ig":
+                    if (i + 1 < args.Length) accounts.Add(PlatformAccount.Create("instagram", args[++i]));
+                    break;
+
+                case "--linkedin" or "--li":
+                    if (i + 1 < args.Length) accounts.Add(PlatformAccount.Create("linkedin", args[++i]));
+                    break;
+
+                case "--discord" or "--dc":
+                    if (i + 1 < args.Length) accounts.Add(PlatformAccount.Create("discord", args[++i]));
+                    break;
+
+                case "--twitter" or "--x":
+                    if (i + 1 < args.Length) accounts.Add(PlatformAccount.Create("twitter", args[++i]));
+                    break;
+
+                case "--signal":
+                    if (i + 1 < args.Length) accounts.Add(PlatformAccount.Create("signal", args[++i]));
+                    break;
+
+                case "--account":
+                    if (i + 1 < args.Length)
+                    {
+                        var spec = args[++i];
+                        var split = spec.IndexOf(':', StringComparison.Ordinal);
+
+                        if (split <= 0 || split == spec.Length - 1)
+                        {
+                            Console.Error.WriteLine($"sg: --account expects platform:handle, got '{spec}'.");
+                            return ExitCode.Usage;
+                        }
+
+                        accounts.Add(PlatformAccount.Create(spec[..split], spec[(split + 1)..]));
+                    }
+
+                    break;
+
+                default:
+                    if (!args[i].StartsWith('-'))
+                    {
+                        positional.Add(args[i]);
+                    }
+
+                    break;
+            }
+        }
+
+        var name = positional.Count > 0 ? string.Join(' ', positional) : null;
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            Console.Error.WriteLine("sg: usage: sg new <name> [--phone <number>] [--email <address>] [--ig <handle>] ...");
+            Console.Error.WriteLine("sg:        --account <platform>:<handle>  for a platform without its own flag");
+            return ExitCode.Usage;
+        }
+
+        var located = Workspace.Locate(workspaceArg);
+
+        if (!located.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(located);
+            return ExitCode.MapExitCode(located.Code);
+        }
+
+        var store = new PersonStore(located.ValueOrThrow());
+        var created = new PersonCreator(store).Create(name, phones, emails, accounts);
+
+        if (!created.IsOk)
+        {
+            ConsoleRenderer.WriteFailure(created);
+            return ExitCode.MapExitCode(created.Code);
+        }
+
+        var person = created.ValueOrThrow();
+        Console.WriteLine($"Created {person.Name} ({person.Id}).");
+        Console.WriteLine(PersonDocument.Describe(person));
+
+        return ExitCode.Success;
+    }
+
+    /// <summary>
+    /// Marks a contact as the user, or shows who is currently marked.
+    /// </summary>
+    /// <remarks>
+    /// The graph has one centre and the API has one "you". This is a real record rather than a
+    /// placeholder, so the same person appears in the list, in search, and at the middle of the
+    /// network.
+    /// </remarks>
+    internal static int Me(string[] args)
+    {
+        // sg me <person|id> | sg me --clear | sg me
+        var clear = args.Contains("--clear", StringComparer.Ordinal);
+        var workspaceArg = ValueAfter(args, "--workspace") ?? ValueAfter(args, "-w");
+        var personArg = args.Skip(1).FirstOrDefault(a => !a.StartsWith('-'));
+
+        if (personArg is null && !clear)
+        {
+            var located = Workspace.Locate(workspaceArg);
+
+            if (!located.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(located);
+                return ExitCode.MapExitCode(located.Code);
+            }
+
+            var store = new PersonStore(located.ValueOrThrow());
+            var all = store.ListAll(out _);
+
+            if (!all.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(all);
+                return ExitCode.MapExitCode(all.Code);
+            }
+
+            var me = all.ValueOrThrow().FirstOrDefault(p => p.IsMe);
+
+            Console.WriteLine(me is null
+                ? "No contact is marked as you. Set one with 'sg me <person|id>'."
+                : $"{me.Name} ({me.Id}) is marked as you.");
+
+            return ExitCode.Success;
+        }
+
+        if (personArg is null)
+        {
+            Console.Error.WriteLine("sg: usage: sg me <person|id> [--clear]");
+            return ExitCode.Usage;
+        }
+
+        return WithPerson(workspaceArg, personArg, "sg me", (editor, _, person) =>
+        {
+            var result = editor.SetIsMe(person.Id, !clear);
+
+            if (!result.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(result);
+                return ExitCode.MapExitCode(result.Code);
+            }
+
+            Console.WriteLine(clear
+                ? $"Cleared: {person.Name} is no longer marked as you."
+                : $"{person.Name} is now marked as you.");
+
+            return ExitCode.Success;
+        });
     }
 
     internal static int Gender(string[] args)

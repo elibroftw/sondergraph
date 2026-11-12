@@ -129,6 +129,9 @@ public static class InvitePlanner
         // an inner-circle friend nor a distant acquaintance.
         ContactTier.ExtendedFamily => 0.8,
         ContactTier.Acquaintance => 0.6,
+        // Below acquaintances: someone you know through work is the least likely of the
+        // known tiers to turn up to a party.
+        ContactTier.Business => 0.4,
         _ => 0.25,
     };
 

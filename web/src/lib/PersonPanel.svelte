@@ -8,9 +8,32 @@
   // Inline name editing. Instagram contacts arrive named after their handle, and there was
   // no way to give them a real first and last name without dropping to the CLI.
   let editingName = $state(false)
+  let confirmingDelete = $state(false)
+  let deleting = $state(false)
+  let deleteError = $state<string | null>(null)
   let nameDraft = $state('')
   let savingName = $state(false)
   let nameError = $state<string | null>(null)
+
+  /**
+   * Deletes the contact and leaves the panel.
+   *
+   * The panel is emptied rather than refreshed: the person it was showing no longer exists, and
+   * re-fetching would surface a 404 where a graceful exit belongs.
+   */
+  async function confirmDelete() {
+    deleting = true
+    deleteError = null
+
+    try {
+      await api.deletePerson(person.id)
+      onchanged()
+    } catch (e) {
+      deleteError = e instanceof ApiError ? e.message : String(e)
+    } finally {
+      deleting = false
+    }
+  }
 
   function startEditingName() {
     nameDraft = person.name
@@ -122,7 +145,12 @@
     preferred={person.preferred}
     howWeMet={person.howWeMet}
     gender={person.gender}
+    phones={person.phones}
+    emails={person.emails}
     friendsWith={person.friendsWith ?? []}
+    listedBy={person.listedBy ?? []}
+    knownThrough={person.knownThrough ?? null}
+    metThrough={person.metThrough ?? []}
     onselect={onselect}
     onchange={onchanged}
   />
@@ -137,28 +165,6 @@
       />
     </div>
   </div>
-
-  {#if person.phones.length > 0}
-    <section>
-      <h3>Phone</h3>
-      <ul class="plain">
-        {#each person.phones as phone (phone)}
-          <li><a href="tel:{phone.replace(/[^+\d]/g, '')}">{phone}</a></li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
-
-  {#if person.emails.length > 0}
-    <section>
-      <h3>Email</h3>
-      <ul class="plain">
-        {#each person.emails as email (email)}
-          <li><a href="mailto:{email}">{email}</a></li>
-        {/each}
-      </ul>
-    </section>
-  {/if}
 
   {#if person.accounts.length > 0}
     <section>
@@ -206,6 +212,24 @@
   <section class="not-a-contact">
     <button
       class="link-toggle"
+      class:on={person.isMe}
+      onclick={async () => {
+        await api.setIsMe(person.id, !person.isMe)
+        onchanged()
+      }}
+    >
+      {person.isMe ? 'This is you' : 'This is me'}
+    </button>
+    <span class="muted hint-line">
+      {person.isMe
+        ? 'You are at the centre of the network graph. Marking someone else clears this.'
+        : 'Puts this contact at the centre of the network graph instead of a placeholder.'}
+    </span>
+  </section>
+
+  <section class="not-a-contact">
+    <button
+      class="link-toggle"
       class:on={person.notAContact}
       onclick={async () => {
         await api.setNotAContact(person.id, !person.notAContact)
@@ -219,6 +243,35 @@
         ? 'Hidden from lists and counts. The record is kept, so a re-import will not bring it back as a contact.'
         : 'Keeps the record but hides this person from lists, counts and the graph.'}
     </span>
+  </section>
+
+  <section class="delete-person">
+    <!-- Delete is separated from "not a contact" on purpose: one hides a record, the other
+         destroys it. Two steps, and the button names the person, because the panel is narrow
+         and the wrong row is one click away. -->
+    {#if confirmingDelete}
+      <p class="delete-warning" role="alert">
+        Delete {person.name}? This removes the record and the links to it in other contacts, and
+        a re-import will not bring them back.
+      </p>
+      <div class="delete-actions">
+        <button class="danger" disabled={deleting} onclick={confirmDelete}>
+          {deleting ? 'Deleting…' : 'Yes, delete'}
+        </button>
+        <button disabled={deleting} onclick={() => (confirmingDelete = false)}>Cancel</button>
+      </div>
+    {:else}
+      <button class="link-toggle danger-text" onclick={() => (confirmingDelete = true)}>
+        Delete contact
+      </button>
+      <span class="muted hint-line">
+        Removes the record permanently. Use "Not a contact" to keep it but hide it.
+      </span>
+    {/if}
+
+    {#if deleteError}
+      <p class="note-error" role="alert">{deleteError}</p>
+    {/if}
   </section>
 
   {#if meaningfulAliases.length > 0}

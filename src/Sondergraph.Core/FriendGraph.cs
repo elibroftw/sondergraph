@@ -17,11 +17,15 @@ public sealed record GraphNode(
     double Y,
     int Degree);
 
-/// <summary>A friendship between two nodes.</summary>
-/// <param name="From">One end.</param>
-/// <param name="To">The other end.</param>
+/// <summary>A mutual link between two nodes, in the direction it was claimed.</summary>
+/// <param name="From">The person who lists the other.</param>
+/// <param name="To">The person listed.</param>
 /// <param name="Cluster">1 when the edge involves the user, 2 between two contacts.</param>
-public sealed record GraphEdge(string From, string To, int Cluster);
+/// <param name="Reciprocal">
+/// Whether <paramref name="To"/> lists <paramref name="From"/> back. A reciprocal pair is one
+/// line drawn two-headed; a one-way link is an arrow.
+/// </param>
+public sealed record GraphEdge(string From, string To, int Cluster, bool Reciprocal = false);
 
 /// <summary>The friend network, positioned for drawing.</summary>
 /// <param name="Nodes">Every node, the user first.</param>
@@ -33,6 +37,9 @@ public sealed record FriendNetwork(IReadOnlyList<GraphNode> Nodes, IReadOnlyList
 
     /// <summary>How many friendships exist between contacts, excluding the user.</summary>
     public int FriendshipCount => Edges.Count(e => e.Cluster == 2);
+
+    /// <summary>How many of those are claimed by only one side.</summary>
+    public int OneWayCount => Edges.Count(e => e.Cluster == 2 && !e.Reciprocal);
 }
 
 /// <summary>
@@ -79,6 +86,9 @@ public static class FriendGraph
         // ones are drawn as free-standing nodes; otherwise the picture is 1,700 spokes.
         var drawn = connected
             .Select(id => byId[id])
+            // The self record is the centre, not a spoke: an edge from the centre to itself
+            // would draw a loop around the middle of the graph.
+            .Where(p => !p.IsMe)
             // A business is not someone you are friends with, so it does not belong in a
             // network of friendships.
             .Where(p => p.IsPerson)
@@ -86,7 +96,20 @@ public static class FriendGraph
             .ThenBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-        var nodes = new List<GraphNode> { new("me", "You", true, "me", 0, 0, drawn.Count) };
+        // The centre is the record marked self, when there is one. It was a synthetic node
+        // with the id "me" and no data behind it: it could not be opened and knew nothing.
+        // Using the real record means clicking the centre shows an ordinary person, and the
+        // edges below point at a record that actually exists.
+        var self = people.FirstOrDefault(p => p.IsMe);
+        var centreId = self?.Id ?? "me";
+        var centreName = self?.Name ?? "You";
+
+        // Degree is the number of spokes. The rings below exclude the self record, so this is
+        // exactly the number of edges leaving the centre.
+        var nodes = new List<GraphNode>
+        {
+            new(centreId, centreName, true, "me", 0, 0, drawn.Count),
+        };
         var edges = new List<GraphEdge>();
         var positions = new Dictionary<string, (double X, double Y)>(StringComparer.OrdinalIgnoreCase);
 
@@ -121,14 +144,17 @@ public static class FriendGraph
                     Math.Round(y, 4),
                     person.FriendsWith.Count));
 
-                edges.Add(new GraphEdge("me", person.Id, 1));
+                edges.Add(new GraphEdge(centreId, person.Id, 1));
                 index++;
             }
 
             ring++;
         }
 
-        // Friend-to-friend edges, emitted once per unordered pair so the line is not doubled.
+        // Contact-to-contact links, emitted once per unordered pair so the line is not drawn
+        // twice. The pair keeps the direction of the person who listed the other, and records
+        // whether the claim is returned: two one-way links that point at each other collapse
+        // into a single reciprocal edge rather than becoming two separate arrows.
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var person in drawn)
@@ -144,10 +170,15 @@ public static class FriendGraph
                     ? person.Id + "|" + friend
                     : friend + "|" + person.Id;
 
-                if (seen.Add(key))
+                if (!seen.Add(key))
                 {
-                    edges.Add(new GraphEdge(person.Id, friend, 2));
+                    continue;
                 }
+
+                var reciprocal = byId.TryGetValue(friend, out var other)
+                    && other.FriendsWith.Contains(person.Id, StringComparer.OrdinalIgnoreCase);
+
+                edges.Add(new GraphEdge(person.Id, friend, 2, reciprocal));
             }
         }
 

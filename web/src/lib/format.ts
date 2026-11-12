@@ -20,6 +20,30 @@ export function platformLabel(platform: string): string {
 }
 
 /**
+ * Platforms that are a way to reach someone rather than a presence on a social network.
+ *
+ * A phone book entry has no profile: "Contacts" is where the number came from, not a place
+ * the person has a page. Neither does Signal, WhatsApp or SMS - the handle is a phone number
+ * and there is no URL to open. Treating these as accounts with a missing profile produced the
+ * nonsensical "Contacts - no profile URL", which complained about the absence of a thing that
+ * cannot exist.
+ *
+ * Kept as a list of what is *not* a profile rather than a list of what is, so an unfamiliar
+ * social platform still shows its link by default instead of being silently stripped of one.
+ */
+const NON_PROFILE_PLATFORMS = new Set(['vcard', 'signal', 'whatsapp', 'telegram', 'sms'])
+
+/** Whether a platform can meaningfully have a profile URL at all. */
+export function hasProfileConcept(platform: string): boolean {
+  return !NON_PROFILE_PLATFORMS.has(platform.toLowerCase())
+}
+
+/** Platforms shown as ways to reach someone, rather than as social presences. */
+export function isContactPlatform(platform: string): boolean {
+  return !hasProfileConcept(platform)
+}
+
+/**
  * Hue for a platform chip.
  *
  * Known platforms get a hue close to their brand colour, clamped into the cyan-to-violet band
@@ -67,6 +91,7 @@ export const TIERS = [
   { value: 'friend', label: 'Friends' },
   { value: 'extended-family', label: 'Extended family' },
   { value: 'acquaintance', label: 'Acquaintances' },
+  { value: 'business', label: 'Business' },
   { value: 'family', label: 'Family' },
   { value: 'unknown', label: 'Unrated' },
 ] as const
@@ -129,6 +154,34 @@ export function isKnownSource(platform: string): boolean {
 export function tierLabel(tier: string): string {
   const found = TIERS.find((t) => t.value === tier)
   return found ? found.label : tier
+}
+
+/**
+ * Hue per relationship tier, matching the colours the network graph uses.
+ *
+ * The tier pill used to be the only chip in a contact row with no colour of its own: dark
+ * text on a pale grey background, which read as a disabled control rather than a label. A
+ * hue fixes both problems at once - the label becomes legible, and the tiers become
+ * distinguishable while scanning a list, which is the reason to show them at all.
+ *
+ * Reusing the graph's hues means a node's colour and its row's colour are the same thing.
+ * Hues are spread across the wheel rather than a single ramp; neighbouring tiers were
+ * indistinguishable at chip size when they sat close together on the spectrum.
+ */
+const TIER_HUES: Record<string, number> = {
+  family: 330,
+  'extended-family': 25,
+  best: 300,
+  close: 265,
+  friend: 215,
+  acquaintance: 155,
+  business: 48,
+  unknown: 210,
+}
+
+/** Hue for a relationship tier, for the coloured pill in a contact row. */
+export function tierHue(tier: string): number {
+  return TIER_HUES[tier.toLowerCase()] ?? 210
 }
 
 /** First letters of a name, for the avatar placeholder. */

@@ -210,7 +210,18 @@ internal static partial class IngestCommands
                 return ExitCode.MapExitCode(logResult.Code);
             }
 
-            var materialiser = new Materialiser(store, logResult.ValueOrThrow());
+            var deletions = DeletionLog.Load(workspace.Root);
+
+            if (!deletions.IsOk)
+            {
+                ConsoleRenderer.WriteFailure(deletions);
+                return ExitCode.MapExitCode(deletions.Code);
+            }
+
+            var materialiser = new Materialiser(
+                store,
+                logResult.ValueOrThrow(),
+                deletions.ValueOrThrow());
 
             Console.WriteLine();
             Console.WriteLine("Writing to the workspace...");
@@ -260,6 +271,21 @@ internal static partial class IngestCommands
         if (report.RecordsSkipped > 0)
         {
             Console.WriteLine($"  records skipped: {report.RecordsSkipped} (no usable identifier)");
+        }
+
+        // Names without a profile are not broken records: they simply had nobody to attach
+        // to. Reporting them as one total with the unreadable ones made a clean import look
+        // like it had failed on 502 records.
+        if (report.DeletedSkipped > 0)
+        {
+            Console.WriteLine(
+                $"  stays deleted: {report.DeletedSkipped} (you deleted these contacts)");
+        }
+
+        if (report.ProfilelessSkipped > 0)
+        {
+            Console.WriteLine(
+                $"  names not attached: {report.ProfilelessSkipped} (no profile, no existing match)");
         }
 
         if (report.Candidates.Count > 0)

@@ -1,21 +1,37 @@
 <script lang="ts">
   import * as d3 from 'd3'
   import { api, ApiError } from './api'
+  import TagView from './TagView.svelte'
 
-  let { onclose }: { onclose: () => void } = $props()
+  let {
+    onclose,
+    onselect = () => {},
+  }: {
+    onclose: () => void
+    onselect?: (id: string) => void
+  } = $props()
+
+  // Two views over the same data, because they answer different questions. "Friendships" is
+  // who knows whom; "Tags" is how the contacts are filed. They were kept apart rather than
+  // merged into one graph: the friendship view draws only people with a mutual recorded,
+  // which is 18 of the 191 tagged contacts here, so an overlay would have hidden most of the
+  // tagging.
+  type View = 'friendships' | 'tags'
+  let view = $state<View>('friendships')
 
   type ApiNode = { id: string; name: string; isMe: boolean; tier: string; degree: number }
-  type ApiEdge = { from: string; to: string; cluster: number }
+  type ApiEdge = { from: string; to: string; cluster: number; reciprocal: boolean }
 
   // d3 mutates node positions, so the simulation works on its own copies.
   type SimNode = d3.SimulationNodeDatum & { id: string; name: string; isMe: boolean; tier: string; degree: number }
-  type SimLink = d3.SimulationLinkDatum<SimNode> & { cluster: number }
+  type SimLink = d3.SimulationLinkDatum<SimNode> & { cluster: number; reciprocal: boolean }
 
   let svgElement: SVGSVGElement | undefined = $state()
   let loading = $state(true)
   let error = $state<string | null>(null)
   let contacts = $state(0)
   let friendships = $state(0)
+  let oneWay = $state(0)
   let empty = $state(false)
 
   // Held until the <svg> exists. The element lives inside the !empty branch, so it is not
@@ -37,6 +53,7 @@
     close: '#a78bfa',
     friend: '#60a5fa',
     acquaintance: '#34d399',
+    business: '#facc15',
     unknown: '#94a3b8',
   }
 
@@ -77,12 +94,46 @@
     const byId = new Map(simNodes.map((n) => [n.id, n]))
 
     const simLinks: SimLink[] = edges
-      .map((e) => ({ source: byId.get(e.from), target: byId.get(e.to), cluster: e.cluster }))
+      .map((e) => ({
+        source: byId.get(e.from),
+        target: byId.get(e.to),
+        cluster: e.cluster,
+        reciprocal: e.reciprocal,
+      }))
       .filter((l) => l.source && l.target) as SimLink[]
 
     // Everything lives inside one group so zoom and pan move labels with their circles.
     const root = svg.append('g')
 
+    // Arrowheads for one-way links. Defined once per render and referenced by id; the marker
+    // is offset so the tip lands on the circle's edge rather than under it.
+    const defs = svg.append('defs')
+
+    for (const [id, colour] of [
+      ['arrow-one', 'rgba(34,211,238,0.85)'],
+      ['arrow-rec', 'rgba(34,211,238,0.55)'],
+    ] as const) {
+      defs
+        .append('marker')
+        .attr('id', id)
+        .attr('viewBox', '0 -6 12 12')
+        // markerUnits defaults to strokeWidth, which scales the 5px marker by a 1.8px stroke
+        // and leaves it invisible on a wide canvas. userSpaceOnUse pins the size to the
+        // drawing so both line weights get an arrowhead the same, readable size.
+        .attr('markerUnits', 'userSpaceOnUse')
+        .attr('refX', 17)
+        .attr('refY', 0)
+        .attr('markerWidth', 11)
+        .attr('markerHeight', 11)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-3.5L9,0L0,3.5')
+        .attr('fill', colour)
+    }
+
+    // Every link is drawn as a line from source to target. The pair keeps the direction the
+    // claim was made in, so a one-way link is a single arrow pointing at the person listed and
+    // a reciprocal pair is one line with an arrowhead at each end.
     const link = root
       .append('g')
       .selectAll('line')
@@ -90,6 +141,12 @@
       .join('line')
       .attr('stroke', (d) => (d.cluster === 1 ? 'rgba(34,211,238,0.18)' : 'rgba(34,211,238,0.55)'))
       .attr('stroke-width', (d) => (d.cluster === 1 ? 1 : 1.8))
+      // The user's own spokes are not a claim about anyone else, so they get no arrowhead.
+      .attr('marker-end', (d) => {
+        if (d.cluster === 1) return null
+        return d.reciprocal ? 'url(#arrow-rec)' : 'url(#arrow-one)'
+      })
+      .attr('marker-start', (d) => (d.cluster === 2 && d.reciprocal ? 'url(#arrow-rec)' : null))
 
     const node = root
       .append('g')
@@ -110,7 +167,9 @@
     // not a separate text element positioned by hand.
     node
       .append('text')
-      .text((d) => (d.isMe ? 'You' : d.name))
+      // The centre shows the name of whoever is marked as you. It was hardcoded to "You",
+      // which hid the fact that the centre is now a real record.
+      .text((d) => d.name)
       .attr('text-anchor', 'middle')
       .attr('y', (d) => (d.isMe ? 26 : 20))
       .attr('font-size', (d) => (d.isMe ? 13 : 11))
@@ -200,6 +259,7 @@
       const result = await api.graph()
       contacts = result.contacts
       friendships = result.friendships
+      oneWay = result.oneWay
       empty = result.contacts === 0
       pending = { nodes: result.nodes as ApiNode[], edges: result.edges as ApiEdge[] }
     } catch (e) {
@@ -234,11 +294,36 @@
   <header class="party-head">
     <h1>Network</h1>
     <div class="party-head-actions">
-      <button onclick={reset}>Reset view</button>
-      <button onclick={load}>Relayout</button>
+      {#if view === 'friendships'}
+        <button onclick={reset}>Reset view</button>
+        <button onclick={load}>Relayout</button>
+      {/if}
       <button onclick={onclose}>Back to contacts</button>
     </div>
   </header>
+
+  <div class="tiers" role="tablist" aria-label="Network view">
+    <button
+      role="tab"
+      aria-selected={view === 'friendships'}
+      class:active={view === 'friendships'}
+      onclick={() => (view = 'friendships')}
+    >
+      Friendships
+    </button>
+    <button
+      role="tab"
+      aria-selected={view === 'tags'}
+      class:active={view === 'tags'}
+      onclick={() => (view = 'tags')}
+    >
+      Tags
+    </button>
+  </div>
+
+  {#if view === 'tags'}
+    <TagView onselect={onselect} />
+  {:else}
 
   {#if error}
     <p class="note-error" role="alert">{error}</p>
@@ -250,13 +335,14 @@
     <div class="graph-empty">
       <p>No friendships recorded yet.</p>
       <p class="muted">
-        Open a contact and use <strong>Friends with</strong> to link people who know each other.
+        Open a contact and use <strong>Mutuals</strong> to link people who know each other.
       </p>
     </div>
   {:else}
     <p class="graph-summary">
-      {contacts} people · {friendships} friendships · drag a node to move it,
-      drag the background to pan, scroll to zoom
+      {contacts} people · {friendships} friendships{#if oneWay > 0}
+        ({oneWay} one-way){/if} · drag a node to move it, drag the background to pan, scroll to
+      zoom
     </p>
 
     <svg
@@ -265,5 +351,6 @@
       role="img"
       aria-label="Friend network: you at the centre with {contacts} contacts"
     ></svg>
+  {/if}
   {/if}
 </div>
